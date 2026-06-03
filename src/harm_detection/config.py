@@ -1,10 +1,18 @@
 from __future__ import annotations
 
+import os
 from dataclasses import dataclass
 from pathlib import Path
 
 
-ROOT_DIR = Path(__file__).resolve().parents[2]
+def _resolve_root_dir() -> Path:
+    override = os.environ.get("HARM_DETECTION_ROOT")
+    if override:
+        return Path(override).expanduser().resolve()
+    return Path(__file__).resolve().parents[2]
+
+
+ROOT_DIR = _resolve_root_dir()
 DATASET_DIR = ROOT_DIR / "dataset"
 ARTIFACTS_DIR = ROOT_DIR / "artifacts"
 LAKE_DIR = ARTIFACTS_DIR / "lake"
@@ -161,4 +169,3 @@ REQUIRED_SILVER_COLUMNS = [
     "text_present",
     "ingest_issue_flags",
 ]
-

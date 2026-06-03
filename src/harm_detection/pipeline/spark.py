@@ -16,7 +16,11 @@ def _local_java_home() -> Path | None:
     if not bundled_root.exists():
         return None
     for candidate in bundled_root.iterdir():
-        if candidate.is_dir() and (candidate / "bin" / "java.exe").exists():
+        java_windows = candidate / "bin" / "java.exe"
+        java_unix = candidate / "bin" / "java"
+        if os.name == "nt" and candidate.is_dir() and java_windows.exists():
+            return candidate
+        if os.name != "nt" and candidate.is_dir() and java_unix.exists():
             return candidate
     return None
 

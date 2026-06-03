@@ -88,6 +88,32 @@
 - Because no pseudo-labeled rows passed the configured acceptance rules in this dataset version, pseudo-labeling is currently a documented negative result rather than an active improvement stage.
 - Phase-2 six-category harm classification has not been implemented yet and remains an extension after the binary system.
 
+## Containerization Update (2026-06-03)
+- The repository now includes Docker-based containerization intended for cross-platform execution on Linux containers, especially to avoid native Windows Spark/Hadoop filesystem issues.
+- Added files:
+  `Dockerfile`, `compose.yaml`, `docker-bake.hcl`, `docker/entrypoint.sh`, and `.dockerignore`.
+- The image is based on `python:3.10-slim-bookworm` with Debian Java installed in-container, and is designed to build for both `linux/amd64` and `linux/arm64`.
+- The runtime uses bind-mounts to mount the repository into `/workspace` and sets `HARM_DETECTION_ROOT=/workspace` so the existing CLI continues to read `dataset/` and write `artifacts/` inside the mounted repo.
+- Compose services now cover:
+  one image build target, one batch pipeline service, and one API service.
+- The application config was updated so the project root can be overridden via `HARM_DETECTION_ROOT`, which is required for installed-package execution inside containers.
+- The Spark bootstrap was updated so Linux containers use the in-image Java runtime rather than mistakenly trying to reuse the Windows-only bundled JDK from the bind-mounted repo.
+
+## Container Verification (2026-06-03)
+- `docker compose build` succeeded.
+- `docker compose run --rm pipeline harm-detect --help` succeeded.
+- `docker compose run --rm pipeline python -m pytest tests/test_text_utils.py -q` succeeded.
+- `docker compose run --rm pipeline harm-detect build-lake` succeeded inside the Linux container.
+- `docker compose up -d api` started the FastAPI service successfully, and the API health endpoint returned `{"status":"ok"}` when checked from inside the container.
+- `docker buildx bake --print` verified the multi-platform build definition for `linux/amd64` and `linux/arm64`.
+
+## Containerization Notes and Deviations
+- The container image was verified on the local Docker Desktop Linux engine running `linux/amd64`; the multi-platform definition is configured, but `linux/arm64` runtime execution was not exercised locally in this development session.
+- A first draft of the Compose file caused an image-tag collision because multiple services attempted to build and export the same tag simultaneously. This was corrected by introducing a single dedicated build service in `compose.yaml`.
+- A first draft of the Spark bootstrap tried to use the repository’s Windows bundled JDK path inside the Linux container, which broke the Java gateway. This was fixed by making the bundled-JDK detection OS-aware.
+- After successful containerized lake builds, PySpark still emits some noisy `BrokenPipeError` shutdown messages in container logs. The build still completes successfully and artifacts are written, but the logging noise remains a known cleanup item.
+- On the host machine, direct probing of `http://localhost:8000` from PowerShell hit an unrelated SSL-style local environment issue; the containerized service itself was healthy when verified from inside the container.
+
 ## Assumptions and Defaults
 - The generalized title is accepted, but the report will explicitly say the evaluation dataset is YouTube-derived MetaHarm.
 - Local files are treated as the authoritative dataset version even where they differ from the repository description; those differences will be documented as a data audit finding.

@@ -33,6 +33,89 @@ harm-detect run-all
 harm-detect serve
 ```
 
+## Container Usage
+
+The repository now includes a Linux-based Docker setup so the Spark batch workflow can run without the Windows `winutils` and local Parquet write issues we saw on native Windows.
+
+### Docker Compose
+
+Build the image:
+
+```bash
+docker compose build
+```
+
+Run the full batch workflow:
+
+```bash
+docker compose run --rm pipeline
+```
+
+Run a specific batch command:
+
+```bash
+docker compose run --rm pipeline harm-detect build-lake
+docker compose run --rm pipeline harm-detect train
+docker compose run --rm pipeline harm-detect report
+docker compose run --rm pipeline python -m pytest -q
+```
+
+Run the demo API:
+
+```bash
+docker compose up api
+```
+
+The API will be available at [http://localhost:8000/health](http://localhost:8000/health).
+
+### Multi-Platform Builds
+
+The image is designed to build on both `linux/amd64` and `linux/arm64` using multi-arch base images and Debian packages.
+
+Build for the local platform:
+
+```bash
+docker build -t harmful-video-detection:local .
+```
+
+Preview the multi-platform Buildx definition:
+
+```bash
+docker buildx bake --print
+```
+
+Build and load a single-platform image through Buildx:
+
+```bash
+docker buildx build \
+  --platform linux/amd64 \
+  --load \
+  -t harmful-video-detection:local \
+  .
+```
+
+Build and push a multi-platform image:
+
+```bash
+docker buildx bake --push
+```
+
+Or explicitly:
+
+```bash
+docker buildx build \
+  --platform linux/amd64,linux/arm64 \
+  -t harmful-video-detection:latest \
+  --push \
+  .
+```
+
+### Runtime Notes
+
+- The image does not bake the dataset or generated artifacts into the build context. The repo is bind-mounted into `/workspace` at runtime instead.
+- The container sets `HARM_DETECTION_ROOT=/workspace`, so the existing CLI continues to read `dataset/` and write `artifacts/` in the mounted repo.
+- The Compose setup uses Linux containers, which is the intended path for cross-platform Spark execution.
+
 ## Deliverables
 
 - Reproducible bronze/silver/gold Parquet outputs.
