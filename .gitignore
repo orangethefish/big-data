@@ -1,0 +1,10 @@
+__pycache__/
+.pytest_cache/
+.ruff_cache/
+.venv/
+*.pyc
+artifacts/lake/
+artifacts/models/
+artifacts/reports/
+dataset/
+tools/
