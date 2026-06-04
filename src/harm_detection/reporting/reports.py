@@ -27,6 +27,7 @@ def generate_reports() -> dict[str, str]:
     agreement_df = pd.read_csv(REPORTS_DIR / "agreement_metrics.csv")
     comparison_df = pd.read_csv(REPORTS_DIR / "model_comparison.csv")
     predictions_df = pd.read_csv(REPORTS_DIR / "final_test_predictions.csv")
+    threshold_sweep_df = pd.read_csv(REPORTS_DIR / "validation_threshold_sweep.csv")
     unlabeled_unique = (
         pd.read_parquet(BRONZE_DIR / "unlabeled_large_pool.parquet", columns=["video_id"])["video_id"]
         .dropna()
@@ -49,6 +50,20 @@ def generate_reports() -> dict[str, str]:
     ]
     reference_df = pd.DataFrame(reference_counts, columns=["reference_metric", "plan_value", "local_value"])
     reference_df["delta"] = reference_df["local_value"] - reference_df["plan_value"]
+    source_text_coverage_df = (
+        pd.DataFrame.from_dict(data_quality["source_text_coverage"], orient="index")
+        .reset_index()
+        .rename(columns={"index": "source_name"})
+        .sort_values("source_name")
+        .reset_index(drop=True)
+    )
+    wide_text_coverage_df = pd.DataFrame([data_quality["wide_text_coverage"]])
+    best_threshold_df = (
+        threshold_sweep_df.sort_values(["model_name", "macro_f1", "threshold"], ascending=[True, False, True])
+        .groupby("model_name", as_index=False)
+        .first()
+        .loc[:, ["model_name", "threshold", "macro_f1", "precision", "recall"]]
+    )
 
     sns.set_theme(style="whitegrid")
 
@@ -136,6 +151,14 @@ def generate_reports() -> dict[str, str]:
             )
         ),
         "",
+        "Per-source text coverage after normalization:",
+        "",
+        _frame_block(source_text_coverage_df),
+        "",
+        "Overall wide-table text coverage:",
+        "",
+        _frame_block(wide_text_coverage_df),
+        "",
         "Reference-count drift between the plan and the local authoritative files:",
         "",
         _frame_block(reference_df),
@@ -147,8 +170,13 @@ def generate_reports() -> dict[str, str]:
         "",
         f"- Final model: `{training_summary['final_model_name']}`",
         f"- Selected augmented model: `{training_summary['selected_augmented_model']}`",
+        f"- Validation threshold sweep: `{training_summary['validation_threshold_sweep_path']}`",
         "",
         _frame_block(comparison_df),
+        "",
+        "Best validation thresholds by macro-F1:",
+        "",
+        _frame_block(best_threshold_df),
         "",
         f"![Macro F1]({metric_plot_path.as_posix()})",
     ]
@@ -158,11 +186,14 @@ def generate_reports() -> dict[str, str]:
     pseudo_lines = [
         "# Pseudo-Label Acceptance Summary",
         "",
-        f"- Candidate rows: `{pseudo['candidate_rows']}`",
+        f"- With any text: `{pseudo['with_any_text_rows']}`",
+        f"- After holdout exclusion: `{pseudo['after_holdout_rows']}`",
+        f"- Candidate rows (>= 30 tokens): `{pseudo['candidate_rows']}`",
         f"- Accepted rows: `{pseudo['accepted_rows']}`",
         f"- Harmful pseudo-labels: `{pseudo['accepted_harmful_rows']}`",
         f"- Harmless pseudo-labels: `{pseudo['accepted_harmless_rows']}`",
         f"- Kept in final model: `{pseudo['kept_for_final_model']}`",
+        f"- Accepted-label artifact: `{pseudo['accepted_labels_path']}`",
     ]
     _write_markdown(REPORTS_DIR / "pseudo_label_summary.md", pseudo_lines)
 

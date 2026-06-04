@@ -54,16 +54,22 @@
 - Verify that expert-only, weak-supervision, and pseudo-label models are trained on the same validation/test split so comparisons are fair.
 - Verify pseudo-label thresholds using validation-set calibration before unlabeled data is accepted.
 - Verify the API contract with empty-field rejection, valid prediction response shape, and deterministic output for repeated identical inputs.
+- Verify unlabeled uppercase CSV columns (`Title`, `Description`, `Transcript`, `Date`) are normalized into the silver schema and produce non-zero unlabeled `text_present` coverage.
+- Verify canonical merge auditing records the selected source for each chosen text field on duplicated `video_id` rows.
+- Verify the validation-threshold sweep artifact is generated for all three binary model variants.
 - Verify the report includes one example each of correct high-confidence prediction, false positive, false negative, and a failure case caused by missing or noisy transcript text.
 
-## Implementation Update (2026-06-03)
+## Implementation Update (2026-06-04)
 - The repository now contains a working local implementation under `src/harm_detection/` with CLI entrypoints in `src/harm_detection/cli.py`.
-- The implemented modules cover bronze/silver/gold ingestion, canonical text consolidation, audit tables, expert train/validation/test splits, agreement analysis, baseline plus weak-supervision training, report generation, and a FastAPI demo service.
+- The implemented modules cover bronze/silver/gold ingestion, canonical text consolidation, audit tables, expert train/validation/test splits, agreement analysis, baseline plus weak-supervision training, pseudo-labeling, report generation, and a FastAPI demo service.
 - The demo API is implemented at `src/harm_detection/api/app.py` with `POST /predict` returning `is_harmful`, `harmful_probability`, `risk_band`, and `model_version`.
 - The current model bundle is written to `artifacts/models/final_model.joblib`, and generated reports are written to `artifacts/reports/`.
-- Automated verification is in place under `tests/`, and the latest full test run passed with `9 passed`.
+- The silver-layer normalization now resolves uppercase unlabeled CSV fields such as `Title`, `Description`, `Transcript`, and `Date`, and records alias-based cleanup in `ingest_issue_flags`.
+- The gold-layer auditing now includes `audit_canonical_merges` so duplicated `video_id` rows retain the selected canonical field values and the source row that supplied each winning value.
+- Training now emits accepted weak-label and pseudo-label artifacts plus a validation-threshold sweep CSV for the three binary model variants.
+- Automated verification is in place under `tests/`, and the latest full test run passed with `16 passed`.
 
-## Current Results (2026-06-03)
+## Current Results (2026-06-04)
 - Bronze, silver, and gold artifacts are being produced successfully in `artifacts/lake/`.
 - Current lake summary:
   `silver_row_count = 134420`, `dropped_row_count = 191`, `wide_row_count = 59692`, `expert_labeled_row_count = 18349`.
@@ -71,11 +77,16 @@
 - Pairwise agreement metrics and model comparison outputs are generated in the report artifacts.
 - Final selected model: `expert_plus_weak`.
 - Weak supervision accepted `648` additional rows from weak sources.
-- Pseudo-labeling accepted `0` rows on the current local dataset, so the final shipped model remains the weak-supervision model.
+- Corrected unlabeled-text normalization now preserves `60904 / 60904` unlabeled silver rows with at least one text field, including `60841` titles, `54661` descriptions, and `44134` transcripts.
+- Pseudo-labeling is now exercised on the corrected unlabeled pool:
+  `40401` text-bearing unlabeled rows, `35676` rows with at least `30` tokens, and `9254` accepted pseudo-labels.
+- The pseudo-label model is not shipped because it reduces validation macro-F1 relative to `expert_plus_weak`, so the final shipped model remains the weak-supervision model.
 - Expert test split metrics:
-  `expert_only` macro-F1 `0.5704`, weighted F1 `0.7824`, precision `0.8400`, recall `0.9717`, AUROC `0.7448`, PR-AUC `0.9268`.
+  `expert_only` macro-F1 `0.5701`, weighted F1 `0.7821`, precision `0.8400`, recall `0.9712`, AUROC `0.7442`, PR-AUC `0.9267`.
 - Expert test split metrics after weak supervision:
-  `expert_plus_weak` macro-F1 `0.5758`, weighted F1 `0.7851`, precision `0.8412`, recall `0.9730`, AUROC `0.7446`, PR-AUC `0.9274`.
+  `expert_plus_weak` macro-F1 `0.5740`, weighted F1 `0.7842`, precision `0.8408`, recall `0.9726`, AUROC `0.7443`, PR-AUC `0.9274`.
+- Expert test split metrics after pseudo-labeling:
+  `expert_plus_weak_plus_pseudo` macro-F1 `0.5665`, weighted F1 `0.7809`, precision `0.8392`, recall `0.9726`, AUROC `0.7411`, PR-AUC `0.9276`.
 - Strict `HHH/NNN` consensus evaluation is also generated, with the weak-supervision model improving macro-F1 from `0.6749` to `0.6845`.
 
 ## Development Deviations and Audit Notes
@@ -83,9 +94,10 @@
 - Observed local authoritative counts after cleanup are:
   `13980` subset-agreement rows with non-empty `video_id`, `15057/3294` domain-expert harmful/harmless, `10494/7794` GPT harmful/harmless, `12622/4374` crowd harmful/harmless, and `59671` unique unlabeled `video_id` values after deduplication.
 - The unlabeled CSV contained `816` embedded NUL bytes and `1783` malformed lines, which are now logged and cleaned during ingestion.
+- A follow-up stabilization pass fixed a normalization gap where the unlabeled CSV used uppercase text columns (`Title`, `Description`, `Transcript`, `Date`) that were not previously mapped into the silver schema.
 - The environment exposed a Windows Spark/Hadoop compatibility issue around `winutils` and local Parquet writes. The implemented solution keeps PySpark in local mode for schema validation and pipeline orchestration, while using `pandas` plus `pyarrow` for Parquet persistence to keep the pipeline reproducible on this machine.
 - The default machine Java runtime also caused Spark compatibility problems, so a local JDK 21 runtime was bundled under `tools/jdk21/` and is preferred automatically by the Spark bootstrap code.
-- Because no pseudo-labeled rows passed the configured acceptance rules in this dataset version, pseudo-labeling is currently a documented negative result rather than an active improvement stage.
+- Pseudo-labeling is now active after the unlabeled-text normalization fix, but the pseudo-label retraining round remains a documented negative result because it reduces validation macro-F1 compared with `expert_plus_weak`.
 - Phase-2 six-category harm classification has not been implemented yet and remains an extension after the binary system.
 
 ## Containerization Update (2026-06-03)
@@ -99,12 +111,13 @@
 - The application config was updated so the project root can be overridden via `HARM_DETECTION_ROOT`, which is required for installed-package execution inside containers.
 - The Spark bootstrap was updated so Linux containers use the in-image Java runtime rather than mistakenly trying to reuse the Windows-only bundled JDK from the bind-mounted repo.
 
-## Container Verification (2026-06-03)
+## Container Verification (2026-06-04)
 - `docker compose build` succeeded.
 - `docker compose run --rm pipeline harm-detect --help` succeeded.
 - `docker compose run --rm pipeline python -m pytest tests/test_text_utils.py -q` succeeded.
-- `docker compose run --rm pipeline harm-detect build-lake` succeeded inside the Linux container.
+- `docker compose run --rm pipeline harm-detect run-all` succeeded inside the Linux container.
 - `docker compose up -d api` started the FastAPI service successfully, and the API health endpoint returned `{"status":"ok"}` when checked from inside the container.
+- The containerized API also returned a valid `POST /predict` response with `is_harmful`, `harmful_probability`, `risk_band`, and `model_version`.
 - `docker buildx bake --print` verified the multi-platform build definition for `linux/amd64` and `linux/arm64`.
 
 ## Containerization Notes and Deviations

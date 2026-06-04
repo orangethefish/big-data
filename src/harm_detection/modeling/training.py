@@ -31,6 +31,9 @@ from harm_detection.utils.text import build_model_text, risk_band, token_count
 AGREEMENT_METRICS_PATH = REPORTS_DIR / "agreement_metrics.csv"
 MODEL_COMPARISON_PATH = REPORTS_DIR / "model_comparison.csv"
 PREDICTIONS_PATH = REPORTS_DIR / "final_test_predictions.csv"
+WEAK_LABELS_PATH = REPORTS_DIR / "accepted_weak_labels.csv"
+PSEUDO_LABELS_PATH = REPORTS_DIR / "accepted_pseudo_labels.csv"
+THRESHOLD_SWEEP_PATH = REPORTS_DIR / "validation_threshold_sweep.csv"
 TRAINING_SUMMARY_PATH = MODELS_DIR / "training_summary.json"
 FINAL_MODEL_PATH = MODELS_DIR / "final_model.joblib"
 
@@ -144,8 +147,13 @@ def _safe_auc(metric_fn, y_true: pd.Series, probs: np.ndarray) -> float | None:
     return float(metric_fn(y_true, probs))
 
 
-def compute_metrics(y_true: pd.Series, probabilities: np.ndarray) -> dict[str, Any]:
-    predictions = (probabilities >= 0.5).astype(int)
+def compute_metrics_at_threshold(
+    y_true: pd.Series,
+    probabilities: np.ndarray,
+    *,
+    threshold: float,
+) -> dict[str, Any]:
+    predictions = (probabilities >= threshold).astype(int)
     matrix = confusion_matrix(y_true, predictions, labels=[0, 1])
     return {
         "macro_f1": float(f1_score(y_true, predictions, average="macro")),
@@ -156,6 +164,10 @@ def compute_metrics(y_true: pd.Series, probabilities: np.ndarray) -> dict[str, A
         "pr_auc": _safe_auc(average_precision_score, y_true, probabilities),
         "confusion_matrix": matrix.tolist(),
     }
+
+
+def compute_metrics(y_true: pd.Series, probabilities: np.ndarray) -> dict[str, Any]:
+    return compute_metrics_at_threshold(y_true, probabilities, threshold=0.5)
 
 
 def _predict_frame(bundle: ModelBundle, frame: pd.DataFrame, label_column: str) -> tuple[dict[str, Any], pd.DataFrame]:
@@ -237,29 +249,54 @@ def build_pseudo_labels(
     wide: pd.DataFrame,
     holdout_video_ids: set[str],
     weak_bundle: ModelBundle,
-) -> pd.DataFrame:
-    candidate = wide.loc[
+) -> tuple[pd.DataFrame, dict[str, int]]:
+    with_any_text = wide.loc[
         wide["de_binary"].isna()
         & wide["gpt_binary"].isna()
         & wide["cw_binary"].isna()
         & wide["text_present"]
-        & ~wide["video_id"].isin(holdout_video_ids)
     ].copy()
-    candidate["model_text"] = candidate.apply(
+    remaining_after_holdout = with_any_text.loc[
+        ~with_any_text["video_id"].isin(holdout_video_ids)
+    ].copy()
+    remaining_after_holdout["model_text"] = remaining_after_holdout.apply(
         lambda row: build_model_text(row.get("title"), row.get("description"), row.get("transcript")),
         axis=1,
     )
-    candidate["token_count"] = candidate["model_text"].map(token_count)
-    candidate = candidate.loc[candidate["token_count"] >= 30].copy()
+    remaining_after_holdout["token_count"] = remaining_after_holdout["model_text"].map(token_count)
+    candidate = remaining_after_holdout.loc[remaining_after_holdout["token_count"] >= 30].copy()
+    summary = {
+        "with_any_text_rows": int(len(with_any_text)),
+        "after_holdout_rows": int(len(remaining_after_holdout)),
+        "min_token_rows": int(len(candidate)),
+        "accepted_rows": 0,
+        "accepted_harmful_rows": 0,
+        "accepted_harmless_rows": 0,
+    }
     if candidate.empty:
-        return pd.DataFrame(columns=["video_id", "model_text", "pseudo_label", "pseudo_probability", "sample_weight"])
+        return (
+            pd.DataFrame(
+                columns=["video_id", "model_text", "pseudo_label", "pseudo_probability", "sample_weight"]
+            ),
+            summary,
+        )
 
     probabilities = weak_bundle.model.predict_proba(candidate["model_text"])[:, 1]
     candidate["pseudo_probability"] = probabilities
     accepted = candidate.loc[(candidate["pseudo_probability"] >= 0.95) | (candidate["pseudo_probability"] <= 0.05)].copy()
     accepted["pseudo_label"] = (accepted["pseudo_probability"] >= 0.5).astype(int)
     accepted["sample_weight"] = 0.5
-    return accepted[["video_id", "model_text", "pseudo_label", "pseudo_probability", "sample_weight"]]
+    summary.update(
+        {
+            "accepted_rows": int(len(accepted)),
+            "accepted_harmful_rows": int((accepted["pseudo_label"] == 1).sum()),
+            "accepted_harmless_rows": int((accepted["pseudo_label"] == 0).sum()),
+        }
+    )
+    return (
+        accepted[["video_id", "model_text", "pseudo_label", "pseudo_probability", "sample_weight"]],
+        summary,
+    )
 
 
 def _bundle_from_train(
@@ -296,6 +333,28 @@ def _merge_predictions_for_report(predictions: pd.DataFrame) -> pd.DataFrame:
     return enriched
 
 
+def _build_threshold_sweep(predictions: pd.DataFrame) -> pd.DataFrame:
+    rows: list[dict[str, Any]] = []
+    y_true = predictions["de_binary"].astype(int)
+    probabilities = predictions["probability"].to_numpy()
+    for threshold in [step / 100 for step in range(5, 100, 5)]:
+        metrics = compute_metrics_at_threshold(y_true, probabilities, threshold=threshold)
+        rows.append(
+            {
+                "model_name": str(predictions["model_name"].iloc[0]),
+                "threshold": threshold,
+                "macro_f1": metrics["macro_f1"],
+                "weighted_f1": metrics["weighted_f1"],
+                "precision": metrics["precision"],
+                "recall": metrics["recall"],
+                "auroc": metrics["auroc"],
+                "pr_auc": metrics["pr_auc"],
+                "confusion_matrix": json.dumps(metrics["confusion_matrix"]),
+            }
+        )
+    return pd.DataFrame(rows)
+
+
 def train_models() -> dict[str, Any]:
     ensure_dir(MODELS_DIR)
     ensure_dir(REPORTS_DIR)
@@ -320,7 +379,7 @@ def train_models() -> dict[str, Any]:
         majority_rows.append({"model_name": "majority_baseline", "split": split_name, **metrics})
 
     baseline_bundle = _bundle_from_train("expert_only", train_frame, validation_frame, "de_binary")
-    baseline_val_metrics, _ = _predict_frame(baseline_bundle, validation_frame, "de_binary")
+    baseline_val_metrics, baseline_val_predictions = _predict_frame(baseline_bundle, validation_frame, "de_binary")
     baseline_test_metrics, baseline_test_predictions = _predict_frame(baseline_bundle, test_frame, "de_binary")
 
     reliabilities = estimate_weak_source_reliabilities(train_frame)
@@ -338,10 +397,10 @@ def train_models() -> dict[str, Any]:
         )
 
     weak_bundle = _bundle_from_train("expert_plus_weak", weak_train, validation_frame, "label", "sample_weight")
-    weak_val_metrics, _ = _predict_frame(weak_bundle, validation_frame, "de_binary")
+    weak_val_metrics, weak_val_predictions = _predict_frame(weak_bundle, validation_frame, "de_binary")
     weak_test_metrics, weak_test_predictions = _predict_frame(weak_bundle, test_frame, "de_binary")
 
-    pseudo_labels = build_pseudo_labels(wide, holdout_video_ids, weak_bundle)
+    pseudo_labels, pseudo_label_funnel = build_pseudo_labels(wide, holdout_video_ids, weak_bundle)
     pseudo_train = weak_train.copy()
     if not pseudo_labels.empty:
         pseudo_train = pd.concat(
@@ -355,7 +414,7 @@ def train_models() -> dict[str, Any]:
         )
 
     pseudo_bundle = _bundle_from_train("expert_plus_weak_plus_pseudo", pseudo_train, validation_frame, "label", "sample_weight")
-    pseudo_val_metrics, _ = _predict_frame(pseudo_bundle, validation_frame, "de_binary")
+    pseudo_val_metrics, pseudo_val_predictions = _predict_frame(pseudo_bundle, validation_frame, "de_binary")
     pseudo_test_metrics, pseudo_test_predictions = _predict_frame(pseudo_bundle, test_frame, "de_binary")
 
     selected_augmented = weak_bundle
@@ -397,6 +456,18 @@ def train_models() -> dict[str, Any]:
     }[final_name]
     final_predictions = _merge_predictions_for_report(final_predictions)
     final_predictions.to_csv(PREDICTIONS_PATH, index=False)
+    weak_labels.to_csv(WEAK_LABELS_PATH, index=False)
+    pseudo_labels.to_csv(PSEUDO_LABELS_PATH, index=False)
+
+    threshold_sweep_df = pd.concat(
+        [
+            _build_threshold_sweep(baseline_val_predictions),
+            _build_threshold_sweep(weak_val_predictions),
+            _build_threshold_sweep(pseudo_val_predictions),
+        ],
+        ignore_index=True,
+    )
+    threshold_sweep_df.to_csv(THRESHOLD_SWEEP_PATH, index=False)
 
     consensus_test = test_frame.loc[test_frame["consensus_code"].isin(["HHH", "NNN"])].copy()
     consensus_metrics: dict[str, Any] = {}
@@ -434,21 +505,17 @@ def train_models() -> dict[str, Any]:
         "accepted_rows": int(len(weak_labels)),
         "accepted_harmful_rows": int((weak_labels["weak_label"] == 1).sum()) if not weak_labels.empty else 0,
         "accepted_harmless_rows": int((weak_labels["weak_label"] == 0).sum()) if not weak_labels.empty else 0,
+        "accepted_labels_path": str(WEAK_LABELS_PATH),
     }
     pseudo_label_summary = {
-        "candidate_rows": int(
-            wide.loc[
-                wide["de_binary"].isna()
-                & wide["gpt_binary"].isna()
-                & wide["cw_binary"].isna()
-                & wide["text_present"]
-                & ~wide["video_id"].isin(holdout_video_ids)
-            ].shape[0]
-        ),
-        "accepted_rows": int(len(pseudo_labels)),
-        "accepted_harmful_rows": int((pseudo_labels["pseudo_label"] == 1).sum()) if not pseudo_labels.empty else 0,
-        "accepted_harmless_rows": int((pseudo_labels["pseudo_label"] == 0).sum()) if not pseudo_labels.empty else 0,
+        "with_any_text_rows": pseudo_label_funnel["with_any_text_rows"],
+        "after_holdout_rows": pseudo_label_funnel["after_holdout_rows"],
+        "candidate_rows": pseudo_label_funnel["min_token_rows"],
+        "accepted_rows": pseudo_label_funnel["accepted_rows"],
+        "accepted_harmful_rows": pseudo_label_funnel["accepted_harmful_rows"],
+        "accepted_harmless_rows": pseudo_label_funnel["accepted_harmless_rows"],
         "kept_for_final_model": pseudo_kept,
+        "accepted_labels_path": str(PSEUDO_LABELS_PATH),
     }
 
     summary = {
@@ -456,6 +523,7 @@ def train_models() -> dict[str, Any]:
         "agreement_metrics_path": str(AGREEMENT_METRICS_PATH),
         "model_comparison_path": str(MODEL_COMPARISON_PATH),
         "predictions_path": str(PREDICTIONS_PATH),
+        "validation_threshold_sweep_path": str(THRESHOLD_SWEEP_PATH),
         "reliabilities": reliabilities,
         "weak_label_summary": weak_label_summary,
         "pseudo_label_summary": pseudo_label_summary,

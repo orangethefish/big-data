@@ -123,3 +123,27 @@ docker buildx build \
 - Three binary model variants: expert-only, expert + weak supervision, and expert + weak supervision + pseudo-labeling.
 - Report artifacts covering data quality, model comparison, pseudo-label acceptance, and error analysis.
 - A local `POST /predict` FastAPI endpoint for short-text inference.
+
+## Current Validated Status (2026-06-04)
+
+- The unlabeled CSV normalization now preserves uppercase `Title` / `Description` / `Transcript` / `Date` fields, so unlabeled text participates in canonical text consolidation and pseudo-labeling as intended.
+- Current lake summary:
+  `silver_row_count = 134420`, `dropped_row_count = 191`, `wide_row_count = 59692`, `expert_labeled_row_count = 18349`.
+- Current unlabeled text coverage after normalization:
+  `60904/60904` silver unlabeled rows have at least one text field, with `60841` titles, `54661` descriptions, and `44134` transcripts preserved.
+- Final selected model remains `expert_plus_weak`.
+- Weak supervision accepted `648` additional rows.
+- Pseudo-labeling is now exercised on the corrected unlabeled pool:
+  `40401` text-bearing unlabeled rows, `35676` rows with at least `30` tokens, and `9254` accepted pseudo-labels.
+- The pseudo-label model was not shipped because it reduced validation macro-F1 relative to `expert_plus_weak`, so pseudo-labeling is currently a documented negative result rather than the final deployed stage.
+- Expert test split metrics for the shipped `expert_plus_weak` model:
+  macro-F1 `0.5740`, weighted F1 `0.7842`, precision `0.8408`, recall `0.9726`, AUROC `0.7443`, PR-AUC `0.9274`.
+- Strict `HHH/NNN` consensus evaluation for `expert_plus_weak`:
+  macro-F1 `0.6845`, weighted F1 `0.9035`, precision `0.9266`, recall `0.9901`, AUROC `0.8647`, PR-AUC `0.9809`.
+
+## Verification
+
+- Host verification passed with `16` automated tests via `python -m pytest -q`.
+- `harm-detect build-lake`, `harm-detect train`, and `harm-detect report` completed successfully on the host.
+- `docker compose build` and `docker compose run --rm pipeline harm-detect run-all` completed successfully.
+- The containerized API returned a successful health check and a valid `POST /predict` response.

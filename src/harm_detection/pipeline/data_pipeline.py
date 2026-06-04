@@ -28,6 +28,14 @@ from harm_detection.utils.text import normalize_text, parse_harm_labels, select_
 BRONZE_MANIFEST_PATH = BRONZE_DIR / "_manifest.json"
 DATA_QUALITY_REPORT_PATH = GOLD_DIR / "data_quality_summary.json"
 
+_PRIMARY_FIELD_ALIASES = {
+    "video_id": ("video_id",),
+    "title": ("title", "Title"),
+    "description": ("description", "Description", "deacription"),
+    "transcript": ("transcript", "Transcript"),
+    "published_date": ("date", "Date"),
+}
+
 _NORMALIZED_SCHEMA = T.StructType(
     [
         T.StructField("raw_record_id", T.StringType(), False),
@@ -122,6 +130,66 @@ def _as_string_list(value: Any) -> list[str]:
     return [str(value)]
 
 
+def _resolve_normalized_field(
+    row: dict[str, Any],
+    canonical_field: str,
+    *,
+    zero_is_empty: bool = True,
+) -> tuple[str, str | None]:
+    aliases = _PRIMARY_FIELD_ALIASES[canonical_field]
+    for column_name in aliases:
+        value = normalize_text(row.get(column_name), zero_is_empty=zero_is_empty)
+        if value:
+            return value, column_name
+    return "", None
+
+
+def _alias_issue_flag(canonical_field: str, source_column: str | None) -> str | None:
+    if source_column is None:
+        return None
+    primary_column = _PRIMARY_FIELD_ALIASES[canonical_field][0]
+    if source_column == primary_column:
+        return None
+    if canonical_field == "description" and source_column == "deacription":
+        return "description_column_typo"
+    return f"{canonical_field}_column_alias:{source_column}"
+
+
+def _count_present_values(series: pd.Series) -> int:
+    return int(series.fillna("").astype(str).str.strip().ne("").sum())
+
+
+def _compute_text_coverage(frame: pd.DataFrame, group_column: str | None = None) -> dict[str, Any]:
+    def summarize(group: pd.DataFrame) -> dict[str, Any]:
+        row_count = int(len(group))
+        title_present = _count_present_values(group["title"])
+        description_present = _count_present_values(group["description"])
+        transcript_present = _count_present_values(group["transcript"])
+        published_date_present = _count_present_values(group["published_date"])
+        text_present_count = int(group["text_present"].fillna(False).astype(bool).sum())
+        return {
+            "row_count": row_count,
+            "title_present_count": title_present,
+            "description_present_count": description_present,
+            "transcript_present_count": transcript_present,
+            "published_date_present_count": published_date_present,
+            "text_present_count": text_present_count,
+            "title_present_rate": (title_present / row_count) if row_count else 0.0,
+            "description_present_rate": (description_present / row_count) if row_count else 0.0,
+            "transcript_present_rate": (transcript_present / row_count) if row_count else 0.0,
+            "published_date_present_rate": (published_date_present / row_count) if row_count else 0.0,
+            "text_present_rate": (text_present_count / row_count) if row_count else 0.0,
+        }
+
+    if group_column is None:
+        return summarize(frame)
+
+    return {
+        str(group_name): summarize(group.reset_index(drop=True))
+        for group_name, group in frame.groupby(group_column, dropna=False)
+    }
+
+
 def _bronze_rows_from_frame(source: DatasetSource, frame: pd.DataFrame, ingested_at: str) -> tuple[list[dict[str, Any]], dict[str, Any]]:
     original_columns = list(frame.columns)
     rows: list[dict[str, Any]] = []
@@ -186,19 +254,31 @@ def build_bronze_layer() -> dict[str, Any]:
 
 
 def _normalize_row(source: DatasetSource, row: dict[str, Any]) -> dict[str, Any] | None:
-    video_id = normalize_text(row.get("video_id"), zero_is_empty=False)
-    title = normalize_text(row.get("title"))
-    description = normalize_text(row.get("description") or row.get("deacription"))
-    transcript = normalize_text(row.get("transcript"))
-    published_date = normalize_text(row.get("date"), zero_is_empty=False)
+    video_id, video_id_column = _resolve_normalized_field(row, "video_id", zero_is_empty=False)
+    title, title_column = _resolve_normalized_field(row, "title")
+    description, description_column = _resolve_normalized_field(row, "description")
+    transcript, transcript_column = _resolve_normalized_field(row, "transcript")
+    published_date, published_date_column = _resolve_normalized_field(
+        row,
+        "published_date",
+        zero_is_empty=False,
+    )
     harm_raw = normalize_text(row.get(source.harm_label_column), zero_is_empty=False) if source.harm_label_column else ""
 
     issue_flags: list[str] = []
     link_column = "links" if "links" in row else "link" if "link" in row else None
     if link_column == "link":
         issue_flags.append("link_column_variant")
-    if "deacription" in row:
-        issue_flags.append("description_column_typo")
+    for canonical_field, source_column in [
+        ("video_id", video_id_column),
+        ("title", title_column),
+        ("description", description_column),
+        ("transcript", transcript_column),
+        ("published_date", published_date_column),
+    ]:
+        alias_flag = _alias_issue_flag(canonical_field, source_column)
+        if alias_flag:
+            issue_flags.append(alias_flag)
     if source.duplicate_of:
         issue_flags.append("duplicate_source_file")
     if not video_id:
@@ -295,24 +375,60 @@ def build_silver_layer() -> dict[str, Any]:
     return silver_summary
 
 
-def _build_canonical_text_map(records: list[dict[str, Any]]) -> tuple[dict[str, dict[str, Any]], list[dict[str, Any]]]:
+def _select_canonical_field_value(
+    rows: list[dict[str, Any]],
+    field_name: str,
+    *,
+    zero_is_empty: bool = True,
+) -> tuple[str | None, str | None, str | None]:
+    candidates: list[tuple[str, str, str]] = []
+    for row in rows:
+        value = normalize_text(row.get(field_name), zero_is_empty=zero_is_empty)
+        if not value:
+            continue
+        candidates.append(
+            (
+                value,
+                str(row.get("source_name") or ""),
+                str(row.get("raw_record_id") or ""),
+            )
+        )
+    if not candidates:
+        return None, None, None
+    candidates.sort(key=lambda item: (len(item[0]), item[0], item[1], item[2]), reverse=True)
+    selected_value, selected_source, selected_record_id = candidates[0]
+    return selected_value, selected_source or None, selected_record_id or None
+
+
+def _build_canonical_text_map(
+    records: list[dict[str, Any]],
+) -> tuple[dict[str, dict[str, Any]], list[dict[str, Any]], list[dict[str, Any]]]:
     buckets: dict[str, list[dict[str, Any]]] = {}
     for record in records:
         buckets.setdefault(str(record["video_id"]), []).append(record)
 
     canonical: dict[str, dict[str, Any]] = {}
     duplicates_audit: list[dict[str, Any]] = []
+    canonical_merge_audit: list[dict[str, Any]] = []
     for video_id, rows in buckets.items():
         titles = [row.get("title") for row in rows]
         descriptions = [row.get("description") for row in rows]
         transcripts = [row.get("transcript") for row in rows]
         dates = [row.get("published_date") for row in rows]
+        title_value, title_source, title_record_id = _select_canonical_field_value(rows, "title")
+        description_value, description_source, description_record_id = _select_canonical_field_value(rows, "description")
+        transcript_value, transcript_source, transcript_record_id = _select_canonical_field_value(rows, "transcript")
+        published_date_value, published_date_source, published_date_record_id = _select_canonical_field_value(
+            rows,
+            "published_date",
+            zero_is_empty=False,
+        )
         canonical[video_id] = {
             "platform": PLATFORM,
-            "title": select_canonical_text(titles) or None,
-            "description": select_canonical_text(descriptions) or None,
-            "transcript": select_canonical_text(transcripts) or None,
-            "published_date": select_canonical_text(dates) or None,
+            "title": title_value,
+            "description": description_value,
+            "transcript": transcript_value,
+            "published_date": published_date_value,
         }
         if len(rows) > 1:
             duplicates_audit.append(
@@ -326,7 +442,27 @@ def _build_canonical_text_map(records: list[dict[str, Any]]) -> tuple[dict[str, 
                     "annotator_sources": sorted({row["annotator_source"] for row in rows}),
                 }
             )
-    return canonical, duplicates_audit
+            canonical_merge_audit.append(
+                {
+                    "video_id": video_id,
+                    "record_count": len(rows),
+                    "source_names": sorted({row["source_name"] for row in rows}),
+                    "annotator_sources": sorted({row["annotator_source"] for row in rows}),
+                    "canonical_title": title_value,
+                    "canonical_title_source": title_source,
+                    "canonical_title_raw_record_id": title_record_id,
+                    "canonical_description": description_value,
+                    "canonical_description_source": description_source,
+                    "canonical_description_raw_record_id": description_record_id,
+                    "canonical_transcript": transcript_value,
+                    "canonical_transcript_source": transcript_source,
+                    "canonical_transcript_raw_record_id": transcript_record_id,
+                    "canonical_published_date": published_date_value,
+                    "canonical_published_date_source": published_date_source,
+                    "canonical_published_date_raw_record_id": published_date_record_id,
+                }
+            )
+    return canonical, duplicates_audit, canonical_merge_audit
 
 
 def _compute_conflicts(records: list[dict[str, Any]]) -> tuple[set[tuple[str, str]], list[dict[str, Any]]]:
@@ -385,7 +521,7 @@ def build_gold_layer() -> dict[str, Any]:
         if (str(record["video_id"]), str(record["annotator_source"])) not in conflicts
     ]
 
-    canonical_text_map, duplicates_audit = _build_canonical_text_map(filtered_records)
+    canonical_text_map, duplicates_audit, canonical_merge_audit = _build_canonical_text_map(filtered_records)
 
     label_table: dict[str, dict[str, Any]] = {}
     for video_id, canonical in canonical_text_map.items():
@@ -447,6 +583,8 @@ def build_gold_layer() -> dict[str, Any]:
         "consensus_hhh_count": int((wide_pdf["consensus_code"] == "HHH").sum()),
         "consensus_nnn_count": int((wide_pdf["consensus_code"] == "NNN").sum()),
         "source_counts": dict(Counter(silver_pdf["source_name"])),
+        "source_text_coverage": _compute_text_coverage(silver_pdf, "source_name"),
+        "wide_text_coverage": _compute_text_coverage(wide_pdf),
     }
 
     spark = get_spark("harm-detect-gold-validate")
@@ -462,6 +600,7 @@ def build_gold_layer() -> dict[str, Any]:
     split_pdf.to_parquet(_parquet_path(GOLD_DIR, "splits"), index=False)
     pd.DataFrame(conflict_audit).to_parquet(_parquet_path(GOLD_DIR, "audit_conflicts"), index=False)
     pd.DataFrame(duplicates_audit).to_parquet(_parquet_path(GOLD_DIR, "audit_duplicates"), index=False)
+    pd.DataFrame(canonical_merge_audit).to_parquet(_parquet_path(GOLD_DIR, "audit_canonical_merges"), index=False)
 
     write_json(DATA_QUALITY_REPORT_PATH, data_quality_summary)
     return data_quality_summary
