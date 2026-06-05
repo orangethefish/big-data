@@ -1,0 +1,217 @@
+\documentclass[a4paper,12pt]{article}
+
+% Language and encoding
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage[english]{babel}
+
+% Margins and line spacing
+\usepackage[margin=1in]{geometry}
+\usepackage{setspace}
+\usepackage{indentfirst}
+\setstretch{1.15}
+
+% Mathematics
+\usepackage{amsmath,amssymb}
+\usepackage{latexsym}
+
+% Tables and figures
+\usepackage{graphicx}
+\usepackage{array}
+\usepackage{tabularx}
+\usepackage{booktabs}
+\usepackage{multirow}
+\usepackage{makecell}
+\usepackage{colortbl}
+\usepackage{subcaption}
+\usepackage{float}
+\usepackage{caption}
+\usepackage{rotating}
+\usepackage{multicol}
+
+% Lists, algorithms, content boxes, and source code
+\usepackage{enumerate}
+\usepackage{enumitem}
+\usepackage[lined,boxed,commentsnumbered]{algorithm2e}
+\usepackage[most]{tcolorbox}
+\usepackage{listings}
+\usepackage{xcolor}
+\usepackage{fancyvrb}
+\usepackage{verbatim}
+
+% Other utilities
+\usepackage{pgfgantt}
+\usepackage{tikz}
+\usepackage{afterpage}
+\usepackage{lastpage}
+\usepackage{fancyhdr}
+\usepackage{hyperref}
+
+% Hyperlink setup
+\hypersetup{
+    colorlinks=true,
+    linkcolor=blue,
+    citecolor=blue,
+    urlcolor=blue
+}
+
+% Source code colors
+\definecolor{codegreen}{rgb}{0,0.6,0}
+\definecolor{codegray}{rgb}{0.5,0.5,0.5}
+\definecolor{codeorange}{rgb}{1,0.49,0}
+\definecolor{backcolour}{rgb}{0.95,0.95,0.96}
+\definecolor{pink}{RGB}{255, 121, 198}
+\definecolor{red}{RGB}{255, 85, 85}
+
+\lstdefinestyle{mystyle}{
+    language=Matlab,
+    basicstyle=\ttfamily\small,
+    numbers=left,
+    numberstyle=\tiny\color{codegray},
+    stepnumber=1,
+    numbersep=5pt,
+    showstringspaces=false,
+    tabsize=2,
+    breaklines=true,
+    breakatwhitespace=false,
+    captionpos=b,
+    commentstyle=\color{codegreen},
+    keywordstyle=\color{pink},
+    stringstyle=\color{red},
+    inputencoding=utf8,
+    extendedchars=true
+}
+\lstset{style=mystyle}
+
+% Theorem environments
+\newtheorem{theorem}{{\bf Theorem}}
+\newtheorem{property}{{\bf Property}}
+\newtheorem{proposition}{{\bf Proposition}}
+\newtheorem{corollary}[proposition]{{\bf Corollary}}
+\newtheorem{lemma}[proposition]{{\bf Lemma}}
+
+% English names
+\AtBeginDocument{\renewcommand*\contentsname{Contents}}
+\AtBeginDocument{\renewcommand*\refname{References}}
+
+% Header and footer
+\setlength{\headheight}{40pt}
+\pagestyle{fancy}
+\fancyhead{}
+\fancyhead[L]{
+    \begin{tabular}{rl}
+        \begin{picture}(25,15)(0,0)
+            \put(0,-8){\includegraphics[width=8mm,height=8mm]{uploads/HCMUT.png}}
+        \end{picture}&
+        \begin{tabular}{l}
+            \textbf{\ttfamily Ho Chi Minh City University of Technology}\\
+            \textbf{\ttfamily Faculty: \textit{Faculty Name}}
+        \end{tabular}
+    \end{tabular}
+}
+\fancyhead[R]{\scriptsize\ttfamily \textit{Course Name}}
+\fancyfoot{}
+\fancyfoot[L]{\scriptsize\ttfamily Course Report - Semester ... - Academic Year ...}
+\fancyfoot[R]{\scriptsize\ttfamily Page \thepage/\pageref{LastPage}}
+\renewcommand{\headrulewidth}{0.3pt}
+\renewcommand{\footrulewidth}{0.3pt}
+
+% Table of contents depth
+\setcounter{secnumdepth}{4}
+\setcounter{tocdepth}{3}
+\makeatletter
+\newcounter{subsubsubsection}[subsubsection]
+\renewcommand\thesubsubsubsection{\thesubsubsection.\@alph\c@subsubsubsection}
+\newcommand\subsubsubsection{\@startsection{subsubsubsection}{4}{\z@}%
+    {-3.25ex\@plus -1ex \@minus -.2ex}%
+    {1.5ex \@plus .2ex}%
+    {\normalfont\normalsize\bfseries}}
+\newcommand*\l@subsubsubsection{\@dottedtocline{3}{10.0em}{4.1em}}
+\newcommand*{\subsubsubsectionmark}[1]{}
+\makeatother
+
+\begin{document}
+
+\pagenumbering{gobble}
+\hypersetup{pageanchor=false}
+\begin{titlepage}
+\begin{center}
+VIETNAM NATIONAL UNIVERSITY, HO CHI MINH CITY\\
+HO CHI MINH CITY UNIVERSITY OF TECHNOLOGY\\
+FACULTY OF \textit{FACULTY NAME}
+\end{center}
+
+\vspace{1cm}
+
+\begin{figure}[h!]
+\centering
+\includegraphics[width=3cm]{uploads/HCMUT.png}
+\end{figure}
+
+\vspace{1cm}
+
+\begin{center}
+\begin{tabular}{c}
+\multicolumn{1}{l}{\textbf{{\Large COURSE NAME}}}\\
+~~\\
+\hline
+\\
+\multicolumn{1}{l}{\textbf{{\Large COURSE REPORT}}}\\
+\\
+\textbf{{\huge Topic:}}\\
+\\
+\textbf{{\LARGE TOPIC TITLE}}\\
+\\
+\hline
+\end{tabular}
+\end{center}
+
+\vspace{3cm}
+
+\begin{table}[h]
+\begin{tabular}{rrl}
+\hspace{5cm} & Instructor: & \textit{Instructor Name}\\
+\\
+& Student/Group: & \textit{Full Name - Student ID}\\
+& & \textit{Full Name - Student ID}\\
+& & \textit{Full Name - Student ID}\\
+\end{tabular}
+\normalsize
+\end{table}
+
+\begin{center}
+{\footnotesize HO CHI MINH CITY, MONTH .../...}
+\end{center}
+\end{titlepage}
+
+\hypersetup{pageanchor=true}
+\pagenumbering{roman}
+\newpage
+\tableofcontents
+\newpage
+\pagenumbering{arabic}
+
+
+\input{sections/01-danh-sach-thanh-vien}
+
+\clearpage
+
+\input{sections/02-mo-dau}
+
+\clearpage
+
+\input{sections/03-co-so-ly-thuyet}
+
+\clearpage
+
+\input{sections/04-noi-dung-thuc-hien}
+
+\clearpage
+
+\input{sections/05-tong-ket}
+
+\clearpage
+
+\input{sections/references}
+
+\end{document}

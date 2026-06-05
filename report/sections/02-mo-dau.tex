@@ -1,0 +1,73 @@
+\section{Introduction}
+
+\subsection{Background and Motivation}
+
+Online streaming platforms host a large and constantly growing amount of user-generated video content. This scale creates a difficult moderation problem: harmful videos can spread quickly, while manual review is costly, slow, and difficult to apply consistently across large collections of content. A practical detection system therefore needs to support moderation triage by identifying videos that are likely to be harmful and should be prioritized for further review.
+
+This project focuses on harmful video detection using text signals that are commonly associated with online videos: the title, description, and transcript. A text-first design is intentionally chosen for the first version because these fields are easier to process in a local batch pipeline than thumbnails, video frames, or audio streams. Text features also provide a strong starting point for a Big Data project because they allow the system to emphasize ingestion, schema normalization, scalable data processing, model comparison, and reproducible evaluation.
+
+The project is framed for streaming platforms in general, but the experimental evaluation is limited to a local YouTube-derived MetaHarm dataset. Therefore, the main claim of the project is not that the trained model is already proven across all platforms. Instead, the project demonstrates a generalizable pipeline design for harmful video detection, with clear data contracts, auditability, weak supervision, pseudo-labeling, and a small demo service.
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.88\textwidth]{uploads/intro_streaming_content_moderation.png}
+\caption{Conceptual content moderation workflow for streaming platforms. The figure illustrates the broader moderation context; this project implements an offline, text-first batch pipeline rather than live stream deactivation or image-frame moderation.}
+\label{fig:introduction-content-moderation-context}
+\end{figure}
+
+\subsection{Problem Statement}
+
+The core problem is binary harmful video detection. Given a video's available text fields, the system predicts whether the video should be considered harmful or harmless. The input contract is intentionally simple:
+
+\begin{itemize}
+    \item \textbf{Title}: the video title text.
+    \item \textbf{Description}: the video description text.
+    \item \textbf{Transcript}: the available speech transcript or extracted text transcript.
+\end{itemize}
+
+The output of the core classifier is a harmful probability and a binary decision. In the demo API, this probability is also mapped into a risk band: low, medium, or high. This output is intended as a decision-support signal for review prioritization, not as a complete automated moderation decision.
+
+The project does not use channel identity, view count, duration, thumbnails, image frames, or live streaming signals in the core classifier. Channel identity may introduce creator leakage, while view count and duration are not consistently available in all labeled sources. Visual and audio features are useful future extensions, but they increase setup complexity and are not required for the first stable version of the pipeline.
+
+\subsection{Project Objectives}
+
+The project has the following objectives:
+
+\begin{itemize}
+    \item Build a reproducible local batch pipeline for harmful video detection.
+    \item Organize raw, cleaned, and modeling-ready data using bronze, silver, and gold data layers.
+    \item Normalize heterogeneous spreadsheets and CSV files into a unified schema.
+    \item Preserve audit information for dropped rows, duplicate records, canonical text selection, and label conflicts.
+    \item Use domain expert labels as the primary supervised ground truth.
+    \item Train an expert-only baseline model for binary harmful vs harmless classification.
+    \item Use GPT-4-Turbo and crowdworker labels as weak supervision sources.
+    \item Run one round of pseudo-labeling on the unlabeled pool using strict confidence thresholds.
+    \item Compare expert-only, expert plus weak supervision, and expert plus weak supervision plus pseudo-labeling models using the same validation and test splits.
+    \item Expose the selected binary model through a small local prediction API.
+\end{itemize}
+
+\subsection{Dataset and Scope}
+
+The experimental dataset contains multiple label sources, including domain expert annotations, GPT-4-Turbo annotations, crowdworker annotations, agreement subsets, and an unlabeled pool. These sources are derived from YouTube data in the MetaHarm setting. Because the sources differ in structure, quality, and coverage, the project treats data engineering as a central part of the solution rather than a preprocessing afterthought.
+
+The current scope is limited to binary harmful vs harmless detection. Six-category harm classification is kept as a phase-two extension after the binary system is stable. The project is also text-first: thumbnails, frame-level image features, audio modeling, live scraping, and real-time event streaming are excluded from the completed system. This boundary makes the project more reproducible and keeps the main contribution focused on data processing, weak supervision, pseudo-labeling, and reliable model evaluation.
+
+\subsection{Main Contributions}
+
+The main contributions of this project are:
+
+\begin{itemize}
+    \item A local single-node data pipeline that converts raw annotation files and unlabeled text records into modeling-ready datasets.
+    \item A bronze, silver, and gold data organization pattern for preserving raw data, enforcing a common schema, and building canonical training tables.
+    \item A canonical text selection rule that keeps the longest non-empty title, description, and transcript for each duplicated video identifier.
+    \item Audit logic that records dropped rows, duplicate handling, source-level cleanup, and label conflicts.
+    \item An annotator agreement analysis comparing domain expert, GPT-4-Turbo, and crowdworker binary labels.
+    \item A TF-IDF logistic regression baseline trained only on domain expert labels.
+    \item A weak-supervision extension that estimates source reliability and accepts only confident weak labels.
+    \item A pseudo-labeling experiment that uses high-confidence predictions from the unlabeled pool and applies a validation-based fallback rule.
+    \item A demo API that returns a harmful probability, binary prediction, risk band, and model version for short text inputs.
+\end{itemize}
+
+\subsection{Report Organization}
+
+The remainder of the report is organized as follows. Section 3 presents the theoretical background, including harmful video detection, text-first modeling, weak supervision, pseudo-labeling, TF-IDF logistic regression, and evaluation metrics. Section 4 describes the implementation methodology and experimental results, including the data pipeline, agreement analysis, model comparison, pseudo-labeling outcome, error analysis, and demo API. Section 5 summarizes the findings, discusses limitations, and proposes future work.
