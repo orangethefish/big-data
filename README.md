@@ -2,6 +2,28 @@
 
 This repository implements a text-first harmful video detection pipeline for streaming platforms in general, with all experiments evaluated on the YouTube-derived MetaHarm dataset available in [`dataset`](/D:/Personal/big-data-new/dataset). The project is intentionally framed as a generalizable pipeline design and engineering exercise, not as proof of cross-platform performance.
 
+Here is an easy-to-read, professional introduction tailored for your paper or project report. It uses clear analogies, breaks down the technical jargon inline, and flows smoothly so anyone can understand the core value of your work immediately.
+
+---
+
+## Introduction
+
+With millions of hours of video uploaded every single day, modern streaming platforms face a massive challenge: keeping users safe from harmful content (like violence, hate speech, or dangerous activities). Relying entirely on human moderators is impossible to scale, while traditional Artificial Intelligence (AI) models require massive amounts of perfect, frame-by-frame human labels to learn what "harmful" looks like. Worse yet, internet trends move fast; an AI trained on last year's data often fails to recognize completely new types of harmful content today.
+
+To break this bottleneck, this project introduces a **Generalizable Harmful Video Detection framework** built specifically for live and on-demand streaming platforms. Instead of demanding flawless, expensive human annotations, our system relies on two smart AI strategies:
+
+* **Weak Supervision:** Instead of checking every single second of a video, we give the AI "lazy" or high-level clues—like just a single tag marking whether an entire 10-minute video is safe or unsafe overall. The model then learns to hunt for the specific moments that caused the flag on its own.
+* **Pseudo-Labeling:** The AI acts as its own teacher. An initial version of the model makes its best guess on unlabeled videos, generates high-confidence "pseudo-labels" (AI-made sticky notes), and uses those notes to train an even stronger, more precise version of itself.
+
+---
+
+> ### 💡 Why This Matters
+> 
+> 
+> Traditional AI systems suffer from **poor generalization**—meaning they work perfectly on the exact data they were trained on, but fail instantly when thrown into the chaotic, real-world mix of a live streaming platform.
+
+By combining weak supervision with an iterative pseudo-labeling loop, our approach builds an AI that doesn't just memorize specific rules. Instead, it learns a deep, generalized understanding of unsafe behaviors. The result is a highly adaptable, resource-efficient detection system that can deploy quickly, scale effortlessly across streaming platforms, and catch harmful content even if it has never seen that specific trend before.
+
 ## Scope
 
 - Core deliverable: binary harmful vs harmless detection.
