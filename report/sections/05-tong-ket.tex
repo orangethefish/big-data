@@ -1,48 +1,48 @@
-\section{Summary}
+\section{Tổng kết}
 
-\subsection{Discussion}
+\subsection{Thảo luận}
 
-This project implemented a complete text-first pipeline for harmful video detection using weak supervision and pseudo-labeling. The main contribution is not only the final classifier, but the full engineering workflow around it: heterogeneous data ingestion, source-specific cleanup, canonical text consolidation, auditability, leakage-safe splitting, agreement analysis, model comparison, and local inference through a demo API.
+Đề tài đã triển khai một pipeline hoàn chỉnh, ưu tiên văn bản, cho bài toán phát hiện video độc hại bằng giám sát yếu và gán nhãn giả. Đóng góp chính không chỉ nằm ở bộ phân loại cuối cùng, mà còn ở toàn bộ quy trình kỹ thuật xoay quanh mô hình: nhập dữ liệu không đồng nhất, làm sạch theo từng nguồn, hợp nhất văn bản chuẩn hóa, khả năng kiểm toán, chia tập tránh rò rỉ, phân tích đồng thuận, so sánh mô hình và suy luận cục bộ thông qua API minh họa.
 
-\subsubsection{What Worked Well}
+\subsubsection{Những điểm hoạt động hiệu quả}
 
-The data engineering design worked well for the messy structure of the dataset. The bronze, silver, and gold layer pattern made the pipeline easier to reason about because each stage had a clear purpose. Raw data preservation, schema normalization, and modeling-ready consolidation were separated instead of mixed together. This separation is important for harmful-content projects because small data-cleaning decisions can directly change model behavior.
+Thiết kế kỹ thuật dữ liệu hoạt động tốt với cấu trúc dữ liệu nhiều nhiễu của bộ dữ liệu. Mô hình ba tầng bronze, silver và gold giúp pipeline dễ phân tích hơn vì mỗi giai đoạn có một mục đích rõ ràng. Việc bảo toàn dữ liệu thô, chuẩn hóa lược đồ và hợp nhất dữ liệu sẵn sàng cho mô hình được tách riêng thay vì trộn lẫn với nhau. Sự tách biệt này quan trọng đối với các dự án nội dung độc hại vì những quyết định làm sạch dữ liệu nhỏ có thể trực tiếp làm thay đổi hành vi của mô hình.
 
-The canonical wide table also became a useful modeling contract. By keeping one row per video identifier and selecting the longest non-empty title, description, and transcript fields, the pipeline preserved richer text when the same video appeared in multiple sources. At the same time, duplicate and merge auditing made this process traceable.
+Bảng wide chuẩn hóa cũng trở thành một hợp đồng mô hình hóa hữu ích. Bằng cách giữ một dòng cho mỗi mã định danh video và chọn các trường tiêu đề, mô tả, bản ghi lời nói dài nhất nhưng không rỗng, pipeline bảo toàn được phần văn bản giàu thông tin hơn khi cùng một video xuất hiện ở nhiều nguồn. Đồng thời, kiểm toán trùng lặp và hợp nhất giúp quá trình này có thể truy vết.
 
-The agreement analysis was also valuable. The measured Cohen's kappa values show that GPT-4-Turbo and crowdworker labels do not behave like clean ground truth. This supports the weak-supervision design: the weak sources are useful, but they must be weighted and filtered rather than blindly merged into the training set.
+Phân tích đồng thuận cũng có giá trị đáng kể. Các giá trị kappa của Cohen đo được cho thấy nhãn của GPT-4-Turbo và crowdworker không hành xử như ground truth sạch. Điều này củng cố thiết kế giám sát yếu: các nguồn yếu có ích, nhưng cần được gán trọng số và lọc thay vì gộp trực tiếp vào tập huấn luyện.
 
-From a modeling perspective, weak supervision provided a modest but consistent improvement over the expert-only baseline. On the expert test split, macro-F1 improved from 0.5701 to 0.5740, and harmful-class recall improved from 0.9712 to 0.9726. The improvement is small, but it is meaningful because the weak labels were accepted conservatively and the validation/test split was protected from leakage.
+Từ góc độ mô hình hóa, giám sát yếu đem lại một mức cải thiện nhỏ nhưng nhất quán so với mô hình nền chỉ dùng chuyên gia. Trên tập test chuyên gia, macro-F1 tăng từ 0.5701 lên 0.5740, và recall của lớp độc hại tăng từ 0.9712 lên 0.9726. Mức cải thiện này nhỏ, nhưng có ý nghĩa vì các nhãn yếu được chấp nhận một cách thận trọng và tập validation/test được bảo vệ khỏi rò rỉ dữ liệu.
 
-\subsubsection{What Did Not Work As Well}
+\subsubsection{Những điểm chưa đạt hiệu quả như mong muốn}
 
-Pseudo-labeling did not improve the final model. Although the unlabeled pool contained many text-bearing rows and the pseudo-labeling step accepted 9254 high-confidence examples, the accepted labels were extremely imbalanced: 9253 were harmful and only 1 was harmless. After retraining, the pseudo-label model reduced validation macro-F1 compared with the weak-supervision model. Under the project's fallback rule, the pseudo-label model was therefore not selected.
+Gán nhãn giả không cải thiện mô hình cuối cùng. Mặc dù tập chưa gán nhãn chứa nhiều dòng có văn bản và bước gán nhãn giả chấp nhận 9254 mẫu độ tin cậy cao, các nhãn được chấp nhận bị mất cân bằng nghiêm trọng: 9253 nhãn là độc hại và chỉ 1 nhãn là không độc hại. Sau khi huấn luyện lại, mô hình có nhãn giả làm giảm macro-F1 trên validation so với mô hình giám sát yếu. Theo quy tắc dự phòng của đề tài, mô hình có nhãn giả vì vậy không được chọn.
 
-This negative result is still useful. It shows that increasing the amount of training data is not automatically beneficial when the added labels are generated by the model itself. Pseudo-labeling can amplify a model's existing bias, especially when the accepted examples are concentrated in one class. In this project, the validation-based selection rule prevented that weaker model from becoming the shipped model.
+Kết quả âm này vẫn hữu ích. Nó cho thấy việc tăng số lượng dữ liệu huấn luyện không tự động có lợi khi các nhãn bổ sung do chính mô hình sinh ra. Gán nhãn giả có thể khuếch đại thiên lệch hiện có của mô hình, đặc biệt khi các mẫu được chấp nhận tập trung vào một lớp. Trong đề tài này, quy tắc lựa chọn dựa trên validation đã ngăn mô hình yếu hơn trở thành mô hình được triển khai.
 
-The final model also has an important precision-recall tradeoff. It achieves very high harmful-class recall, but it still produces many false positives at the default threshold. This is acceptable for a triage-oriented prototype where missing harmful content is costly, but it would require careful threshold tuning before use in a real moderation workflow. A review team with limited capacity might prefer a higher threshold to reduce false positives.
+Mô hình cuối cùng cũng có một đánh đổi precision-recall đáng chú ý. Mô hình đạt recall rất cao cho lớp độc hại, nhưng vẫn tạo ra nhiều false positive ở ngưỡng mặc định. Điều này có thể chấp nhận được đối với một prototype hướng đến phân loại ưu tiên, nơi việc bỏ sót nội dung độc hại có chi phí cao, nhưng cần điều chỉnh ngưỡng cẩn thận trước khi sử dụng trong một quy trình kiểm duyệt thực tế. Một nhóm rà soát có năng lực hạn chế có thể ưu tiên ngưỡng cao hơn để giảm false positive.
 
-\subsubsection{Limitations}
+\subsubsection{Hạn chế}
 
-The first limitation is dataset scope. The system is designed for streaming-platform-style harmful video detection, but the experiments are evaluated only on YouTube-derived MetaHarm data. Therefore, the report should not claim that the trained model is proven to generalize across all streaming platforms. The stronger claim is that the pipeline design is generalizable and can be adapted to other platforms if comparable text and label sources are available.
+Hạn chế thứ nhất là phạm vi dữ liệu. Hệ thống được thiết kế cho phát hiện video độc hại theo kiểu dữ liệu của các nền tảng phát trực tuyến, nhưng các thí nghiệm chỉ được đánh giá trên dữ liệu MetaHarm có nguồn gốc từ YouTube. Vì vậy, báo cáo không nên khẳng định mô hình đã được chứng minh có khả năng tổng quát hóa trên mọi nền tảng phát trực tuyến. Khẳng định phù hợp hơn là thiết kế pipeline có tính tổng quát và có thể được điều chỉnh cho các nền tảng khác nếu có các nguồn văn bản và nhãn tương đương.
 
-The second limitation is modality. The current model uses only title, description, and transcript. This makes the pipeline reproducible and easier to run locally, but it also means that the model cannot understand visual content, on-screen text, audio tone, background imagery, or video-frame context. Some harmful videos may be visually harmful even when their title and description appear harmless.
+Hạn chế thứ hai là phương thức dữ liệu. Mô hình hiện tại chỉ sử dụng tiêu đề, mô tả và bản ghi lời nói. Điều này giúp pipeline có khả năng tái lập và dễ chạy cục bộ hơn, nhưng cũng có nghĩa mô hình không thể hiểu nội dung thị giác, chữ xuất hiện trên màn hình, sắc thái âm thanh, hình nền hoặc ngữ cảnh cấp khung hình. Một số video độc hại có thể độc hại về mặt thị giác ngay cả khi tiêu đề và mô tả có vẻ không độc hại.
 
-The third limitation is label ambiguity. Harmful-content annotation is subjective and policy-dependent. The low agreement values between label sources show that even human and machine annotators can disagree substantially. Some false positives and false negatives may therefore reflect genuine ambiguity rather than simple model error.
+Hạn chế thứ ba là tính mơ hồ của nhãn. Chú thích nội dung độc hại mang tính chủ quan và phụ thuộc vào chính sách. Các giá trị đồng thuận thấp giữa các nguồn nhãn cho thấy ngay cả người chú thích và mô hình máy cũng có thể bất đồng đáng kể. Một số false positive và false negative do đó có thể phản ánh sự mơ hồ thực sự, không chỉ là lỗi đơn giản của mô hình.
 
-The fourth limitation is that the current deliverable is binary classification only. The system can identify whether a video is likely harmful, but it does not yet explain which harm category is present. Category-level prediction would be useful for moderation workflows, but it requires an additional phase of modeling and evaluation.
+Hạn chế thứ tư là sản phẩm hiện tại chỉ phân loại nhị phân. Hệ thống có thể xác định liệu một video có khả năng độc hại hay không, nhưng chưa giải thích loại tác hại cụ thể nào đang hiện diện. Dự đoán ở cấp nhóm tác hại sẽ hữu ích cho quy trình kiểm duyệt, nhưng cần một giai đoạn mô hình hóa và đánh giá bổ sung.
 
-\subsubsection{Ethical and Practical Considerations}
+\subsubsection{Cân nhắc đạo đức và thực tiễn}
 
-Harmful-content detection can affect visibility, review priority, and moderation outcomes. A false positive may unfairly flag harmless content, while a false negative may allow harmful content to remain undetected. Because of this, the model should be interpreted as a decision-support tool rather than an automatic enforcement mechanism.
+Phát hiện nội dung độc hại có thể ảnh hưởng đến mức độ hiển thị, thứ tự ưu tiên rà soát và kết quả kiểm duyệt. Một false positive có thể khiến nội dung không độc hại bị gắn cờ không công bằng, trong khi một false negative có thể để nội dung độc hại không bị phát hiện. Vì lý do này, mô hình nên được hiểu như một công cụ hỗ trợ quyết định thay vì một cơ chế thực thi tự động.
 
-The system should also be used with awareness of dataset bias. A model trained on one platform's data may learn platform-specific language, annotation patterns, or cultural assumptions. If the system is adapted to another platform, it should be revalidated on data from that platform before any operational use.
+Hệ thống cũng cần được sử dụng với nhận thức về thiên lệch dữ liệu. Một mô hình được huấn luyện trên dữ liệu của một nền tảng có thể học các mẫu ngôn ngữ, quy ước chú thích hoặc giả định văn hóa đặc thù của nền tảng đó. Nếu hệ thống được điều chỉnh sang một nền tảng khác, nó cần được tái xác minh trên dữ liệu của nền tảng đó trước mọi hình thức sử dụng vận hành.
 
-Finally, the prediction probability should not be treated as a complete explanation. It is a useful ranking signal, but reviewers may still need examples, highlighted text, category predictions, or other explanations to understand why a video was flagged.
+Cuối cùng, xác suất dự đoán không nên được xem là một lời giải thích đầy đủ. Đây là một tín hiệu xếp hạng hữu ích, nhưng người rà soát vẫn có thể cần ví dụ, đoạn văn bản được làm nổi bật, dự đoán loại tác hại hoặc các hình thức giải thích khác để hiểu vì sao một video bị gắn cờ.
 
-\subsection{Conclusion}
+\subsection{Kết luận}
 
-The project successfully built a reproducible, text-first harmful video detection pipeline with weak supervision, pseudo-labeling, model comparison, reporting, and a local prediction API. The final selected model is \texttt{expert\_plus\_weak}, because weak supervision improved validation and test behavior while pseudo-labeling reduced validation macro-F1.
+Đề tài đã xây dựng thành công một pipeline phát hiện video độc hại ưu tiên văn bản, có khả năng tái lập, kết hợp giám sát yếu, gán nhãn giả, so sánh mô hình, báo cáo và API dự đoán cục bộ. Mô hình cuối cùng được chọn là \texttt{expert\_plus\_weak}, vì giám sát yếu cải thiện hành vi trên validation và test, trong khi gán nhãn giả làm giảm macro-F1 trên validation.
 
 \begin{table}[H]
 \centering
@@ -50,46 +50,46 @@ The project successfully built a reproducible, text-first harmful video detectio
 \renewcommand{\arraystretch}{1.25}
 \begin{tabular}{|l|r|}
 \hline
-\textbf{Final model metric} & \textbf{Value} \\
+\textbf{Chỉ số mô hình cuối cùng} & \textbf{Giá trị} \\
 \hline
-Selected model & \texttt{expert\_plus\_weak} \\
+Mô hình được chọn & \texttt{expert\_plus\_weak} \\
 \hline
-Expert test macro-F1 & 0.5740 \\
+Macro-F1 trên tập test chuyên gia & 0.5740 \\
 \hline
-Expert test weighted F1 & 0.7842 \\
+Weighted F1 trên tập test chuyên gia & 0.7842 \\
 \hline
-Expert test precision & 0.8408 \\
+Precision trên tập test chuyên gia & 0.8408 \\
 \hline
-Expert test recall & 0.9726 \\
+Recall trên tập test chuyên gia & 0.9726 \\
 \hline
-Expert test AUROC & 0.7443 \\
+AUROC trên tập test chuyên gia & 0.7443 \\
 \hline
-Expert test PR-AUC & 0.9274 \\
+PR-AUC trên tập test chuyên gia & 0.9274 \\
 \hline
-Strict consensus macro-F1 & 0.6845 \\
+Macro-F1 trên tập đồng thuận nghiêm ngặt & 0.6845 \\
 \hline
 \end{tabular}
-\caption{Final selected model summary.}
+\caption{Tóm tắt mô hình cuối cùng được chọn.}
 \label{tab:summary-final-model}
 \end{table}
 
-The results show that weak supervision can provide a small improvement over an expert-only supervised baseline when weak labels are filtered carefully and leakage is controlled. The pseudo-labeling experiment demonstrates a different lesson: high-confidence unlabeled examples must still be validated because they can introduce class imbalance and reduce generalization.
+Kết quả cho thấy giám sát yếu có thể đem lại một cải thiện nhỏ so với mô hình nền có giám sát chỉ dùng chuyên gia khi nhãn yếu được lọc cẩn thận và rò rỉ dữ liệu được kiểm soát. Thí nghiệm gán nhãn giả cho thấy một bài học khác: các mẫu chưa gán nhãn có độ tin cậy cao vẫn cần được xác minh bằng validation vì chúng có thể gây mất cân bằng lớp và làm giảm khả năng tổng quát hóa.
 
-Overall, the completed system meets the main goals of the project. It produces reproducible processed datasets, documents data quality issues, compares multiple model variants fairly, prioritizes macro-F1 and harmful-class recall, reports pseudo-labeling honestly as a negative result, and exposes the selected model through a simple local API.
+Nhìn chung, hệ thống hoàn thiện đáp ứng các mục tiêu chính của đề tài. Hệ thống tạo ra các tập dữ liệu đã xử lý có khả năng tái lập, ghi nhận vấn đề chất lượng dữ liệu, so sánh công bằng nhiều biến thể mô hình, ưu tiên macro-F1 và recall của lớp độc hại, báo cáo trung thực gán nhãn giả như một kết quả âm, đồng thời cung cấp mô hình được chọn thông qua một API cục bộ đơn giản.
 
-\subsubsection{Future Work}
+\subsubsection{Hướng phát triển}
 
-Several extensions can improve the system:
+Một số hướng mở rộng có thể cải thiện hệ thống:
 
 \begin{itemize}
-    \item Implement six one-vs-rest harm-category classifiers for \texttt{IH}, \texttt{HH}, \texttt{CB}, \texttt{ADD}, \texttt{SXL}, and \texttt{PH}.
-    \item Add threshold tuning based on practical moderation costs and review capacity.
-    \item Improve probability calibration and pseudo-label selection to reduce class imbalance.
-    \item Explore stronger text models, such as transformer-based encoders, if compute resources allow.
-    \item Add multimodal signals such as thumbnails, sampled frames, or audio-derived features after the text pipeline is stable.
-    \item Evaluate the pipeline on non-YouTube or cross-platform datasets to test generalization more directly.
-    \item Add explainability features that highlight influential title, description, or transcript terms for human reviewers.
-    \item Improve container runtime logging and verify execution on additional hardware architectures.
+    \item Triển khai sáu bộ phân loại one-vs-rest cho các nhóm tác hại \texttt{IH}, \texttt{HH}, \texttt{CB}, \texttt{ADD}, \texttt{SXL} và \texttt{PH}.
+    \item Bổ sung điều chỉnh ngưỡng dựa trên chi phí kiểm duyệt thực tế và năng lực rà soát.
+    \item Cải thiện hiệu chỉnh xác suất và lựa chọn nhãn giả để giảm mất cân bằng lớp.
+    \item Khảo sát các mô hình văn bản mạnh hơn, chẳng hạn các bộ mã hóa dựa trên transformer, nếu tài nguyên tính toán cho phép.
+    \item Bổ sung tín hiệu đa phương thức như ảnh thu nhỏ, khung hình được lấy mẫu hoặc đặc trưng suy ra từ âm thanh sau khi pipeline văn bản đã ổn định.
+    \item Đánh giá pipeline trên các bộ dữ liệu ngoài YouTube hoặc đa nền tảng để kiểm tra khả năng tổng quát hóa trực tiếp hơn.
+    \item Bổ sung các đặc trưng giải thích, chẳng hạn làm nổi bật các thuật ngữ quan trọng trong tiêu đề, mô tả hoặc bản ghi lời nói cho người rà soát.
+    \item Cải thiện nhật ký chạy container và xác minh thực thi trên thêm các kiến trúc phần cứng.
 \end{itemize}
 
-These future directions would move the project from a strong local batch prototype toward a more complete research platform for harmful-video detection.
+Các hướng phát triển này có thể đưa đề tài từ một prototype xử lý theo lô cục bộ vững chắc tiến gần hơn tới một nền tảng nghiên cứu hoàn chỉnh cho phát hiện video độc hại.

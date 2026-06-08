@@ -1,21 +1,21 @@
 \documentclass[a4paper,12pt]{article}
 
-% Language and encoding
+% Ngôn ngữ và mã hóa
 \usepackage[utf8]{inputenc}
-\usepackage[T1]{fontenc}
-\usepackage[english]{babel}
+\usepackage[T5]{fontenc}
+\usepackage[vietnamese]{babel}
 
-% Margins and line spacing
+% Lề trang và giãn dòng
 \usepackage[margin=1in]{geometry}
 \usepackage{setspace}
 \usepackage{indentfirst}
 \setstretch{1.15}
 
-% Mathematics
+% Toán học
 \usepackage{amsmath,amssymb}
 \usepackage{latexsym}
 
-% Tables and figures
+% Bảng và hình
 \usepackage{graphicx}
 \usepackage{array}
 \usepackage{tabularx}
@@ -29,7 +29,7 @@
 \usepackage{rotating}
 \usepackage{multicol}
 
-% Lists, algorithms, content boxes, and source code
+% Danh sách, thuật toán, khung nội dung và mã nguồn
 \usepackage{enumerate}
 \usepackage{enumitem}
 \usepackage[lined,boxed,commentsnumbered]{algorithm2e}
@@ -39,7 +39,7 @@
 \usepackage{fancyvrb}
 \usepackage{verbatim}
 
-% Other utilities
+% Các tiện ích khác
 \usepackage{pgfgantt}
 \usepackage{tikz}
 \usepackage{afterpage}
@@ -47,7 +47,7 @@
 \usepackage{fancyhdr}
 \usepackage{hyperref}
 
-% Hyperlink setup
+% Thiết lập siêu liên kết
 \hypersetup{
     colorlinks=true,
     linkcolor=blue,
@@ -55,7 +55,7 @@
     urlcolor=blue
 }
 
-% Source code colors
+% Màu cho mã nguồn
 \definecolor{codegreen}{rgb}{0,0.6,0}
 \definecolor{codegray}{rgb}{0.5,0.5,0.5}
 \definecolor{codeorange}{rgb}{1,0.49,0}
@@ -83,18 +83,18 @@
 }
 \lstset{style=mystyle}
 
-% Theorem environments
-\newtheorem{theorem}{{\bf Theorem}}
-\newtheorem{property}{{\bf Property}}
-\newtheorem{proposition}{{\bf Proposition}}
-\newtheorem{corollary}[proposition]{{\bf Corollary}}
-\newtheorem{lemma}[proposition]{{\bf Lemma}}
+% Môi trường định lý
+\newtheorem{theorem}{{\bf Định lý}}
+\newtheorem{property}{{\bf Tính chất}}
+\newtheorem{proposition}{{\bf Mệnh đề}}
+\newtheorem{corollary}[proposition]{{\bf Hệ quả}}
+\newtheorem{lemma}[proposition]{{\bf Bổ đề}}
 
-% English names
-\AtBeginDocument{\renewcommand*\contentsname{Contents}}
-\AtBeginDocument{\renewcommand*\refname{References}}
+% Tên hiển thị tiếng Việt
+\AtBeginDocument{\renewcommand*\contentsname{Mục lục}}
+\AtBeginDocument{\renewcommand*\refname{Tài liệu tham khảo}}
 
-% Header and footer
+% Đầu trang và chân trang
 \setlength{\headheight}{40pt}
 \pagestyle{fancy}
 \fancyhead{}
@@ -104,19 +104,19 @@
             \put(0,-8){\includegraphics[width=8mm,height=8mm]{uploads/HCMUT.png}}
         \end{picture}&
         \begin{tabular}{l}
-            \textbf{\ttfamily Ho Chi Minh City University of Technology}\\
-            \textbf{\ttfamily Faculty: \textit{Faculty Name}}
+            \textbf{\ttfamily Trường Đại học Bách khoa, ĐHQG-HCM}\\
+            \textbf{\ttfamily Khoa: \textit{Tên khoa}}
         \end{tabular}
     \end{tabular}
 }
-\fancyhead[R]{\scriptsize\ttfamily \textit{Course Name}}
+\fancyhead[R]{\scriptsize\ttfamily \textit{Tên học phần}}
 \fancyfoot{}
-\fancyfoot[L]{\scriptsize\ttfamily Course Report - Semester ... - Academic Year ...}
-\fancyfoot[R]{\scriptsize\ttfamily Page \thepage/\pageref{LastPage}}
+\fancyfoot[L]{\scriptsize\ttfamily Báo cáo học phần - Học kỳ ... - Năm học ...}
+\fancyfoot[R]{\scriptsize\ttfamily Trang \thepage/\pageref{LastPage}}
 \renewcommand{\headrulewidth}{0.3pt}
 \renewcommand{\footrulewidth}{0.3pt}
 
-% Table of contents depth
+% Độ sâu mục lục
 \setcounter{secnumdepth}{4}
 \setcounter{tocdepth}{3}
 \makeatletter
@@ -136,9 +136,9 @@
 \hypersetup{pageanchor=false}
 \begin{titlepage}
 \begin{center}
-VIETNAM NATIONAL UNIVERSITY, HO CHI MINH CITY\\
-HO CHI MINH CITY UNIVERSITY OF TECHNOLOGY\\
-FACULTY OF \textit{FACULTY NAME}
+ĐẠI HỌC QUỐC GIA THÀNH PHỐ HỒ CHÍ MINH\\
+TRƯỜNG ĐẠI HỌC BÁCH KHOA\\
+KHOA \textit{TÊN KHOA}
 \end{center}
 
 \vspace{1cm}
@@ -152,15 +152,20 @@ FACULTY OF \textit{FACULTY NAME}
 
 \begin{center}
 \begin{tabular}{c}
-\multicolumn{1}{l}{\textbf{{\Large COURSE NAME}}}\\
+\multicolumn{1}{l}{\textbf{{\Large TÊN HỌC PHẦN}}}\\
 ~~\\
 \hline
 \\
-\multicolumn{1}{l}{\textbf{{\Large COURSE REPORT}}}\\
+\multicolumn{1}{l}{\textbf{{\Large BÁO CÁO HỌC PHẦN}}}\\
 \\
-\textbf{{\huge Topic:}}\\
+\textbf{{\huge Đề tài:}}\\
 \\
-\textbf{{\LARGE TOPIC TITLE}}\\
+\multicolumn{1}{c}{
+\begin{minipage}{0.92\textwidth}
+\centering
+\textbf{{\LARGE Phát hiện video độc hại có khả năng tổng quát hóa cho các nền tảng phát trực tuyến bằng giám sát yếu và gán nhãn giả}}
+\end{minipage}
+}\\
 \\
 \hline
 \end{tabular}
@@ -170,17 +175,17 @@ FACULTY OF \textit{FACULTY NAME}
 
 \begin{table}[h]
 \begin{tabular}{rrl}
-\hspace{5cm} & Instructor: & \textit{Instructor Name}\\
+\hspace{5cm} & Giảng viên hướng dẫn: & \textit{Tên giảng viên}\\
 \\
-& Student/Group: & \textit{Full Name - Student ID}\\
-& & \textit{Full Name - Student ID}\\
-& & \textit{Full Name - Student ID}\\
+& Sinh viên/Nhóm: & \textit{Họ tên - Mã số sinh viên}\\
+& & \textit{Họ tên - Mã số sinh viên}\\
+& & \textit{Họ tên - Mã số sinh viên}\\
 \end{tabular}
 \normalsize
 \end{table}
 
 \begin{center}
-{\footnotesize HO CHI MINH CITY, MONTH .../...}
+{\footnotesize THÀNH PHỐ HỒ CHÍ MINH, THÁNG .../...}
 \end{center}
 \end{titlepage}
 

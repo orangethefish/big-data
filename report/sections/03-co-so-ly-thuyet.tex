@@ -1,32 +1,32 @@
-\section{Theoretical Background}
+\section{Cơ sở lý thuyết}
 
-\subsection{Harmful Video Detection}
+\subsection{Phát hiện video độc hại}
 
-Harmful video detection is a content classification problem in which a system estimates whether a video contains or promotes unsafe, abusive, misleading, exploitative, or otherwise policy-violating material. In a practical moderation setting, this kind of model is usually not expected to make final enforcement decisions by itself. Instead, it can support triage by identifying content that should receive closer review.
+Phát hiện video độc hại là một bài toán phân loại nội dung, trong đó hệ thống ước lượng liệu một video có chứa hoặc cổ xúy nội dung không an toàn, lạm dụng, gây hiểu lầm, bóc lột hoặc vi phạm chính sách hay không. Trong bối cảnh kiểm duyệt thực tế, mô hình loại này thường không được kỳ vọng tự đưa ra quyết định thực thi cuối cùng. Thay vào đó, mô hình có thể hỗ trợ phân loại ưu tiên bằng cách xác định những nội dung cần được rà soát kỹ hơn.
 
-This project formulates the core task as binary classification:
+Đề tài này mô hình hóa nhiệm vụ cốt lõi dưới dạng phân loại nhị phân:
 
 \begin{equation}
     y =
     \begin{cases}
-        1, & \text{if the video is harmful},\\
-        0, & \text{if the video is harmless}.
+        1, & \text{nếu video độc hại},\\
+        0, & \text{nếu video không độc hại}.
     \end{cases}
 \end{equation}
 
-The binary formulation is chosen as the main deliverable because it is simpler, easier to evaluate reliably, and more suitable for building a stable end-to-end data pipeline. A more detailed multi-label formulation is possible when videos need to be assigned to specific harm categories. In this project, the six category labels \texttt{IH}, \texttt{HH}, \texttt{CB}, \texttt{ADD}, \texttt{SXL}, and \texttt{PH} are treated as a phase-two extension rather than part of the completed core system.
+Cách phát biểu nhị phân được chọn làm sản phẩm chính vì đơn giản hơn, dễ đánh giá một cách đáng tin cậy hơn và phù hợp hơn để xây dựng một pipeline dữ liệu đầu cuối ổn định. Một cách phát biểu đa nhãn chi tiết hơn có thể được áp dụng khi cần gán video vào các loại tác hại cụ thể. Trong đề tài này, sáu nhãn loại \texttt{IH}, \texttt{HH}, \texttt{CB}, \texttt{ADD}, \texttt{SXL} và \texttt{PH} được xem là phần mở rộng giai đoạn hai, không thuộc hệ thống cốt lõi đã hoàn thiện.
 
-\subsection{Text-First Feature Design}
+\subsection{Thiết kế đặc trưng ưu tiên văn bản}
 
-Videos contain multiple possible information sources, including visual frames, audio, metadata, comments, engagement signals, and text descriptions. This project intentionally starts with a text-first design. The model input is limited to three fields:
+Video có thể chứa nhiều nguồn thông tin khác nhau, bao gồm khung hình, âm thanh, siêu dữ liệu, bình luận, tín hiệu tương tác và phần mô tả bằng văn bản. Đề tài này bắt đầu bằng một thiết kế ưu tiên văn bản (text-first). Đầu vào của mô hình được giới hạn trong ba trường:
 
 \begin{itemize}
-    \item \textbf{Title}: a short summary written for viewers.
-    \item \textbf{Description}: longer contextual text provided with the video.
-    \item \textbf{Transcript}: spoken content converted into text when available.
+    \item \textbf{Tiêu đề}: phần tóm tắt ngắn được viết cho người xem.
+    \item \textbf{Mô tả}: phần văn bản ngữ cảnh dài hơn đi kèm video.
+    \item \textbf{Bản ghi lời nói}: nội dung nói được chuyển thành văn bản khi có sẵn.
 \end{itemize}
 
-The combined model text can be represented as:
+Văn bản đầu vào hợp nhất cho mô hình có thể được biểu diễn như sau:
 
 \begin{verbatim}
 model_text = normalize(title)
@@ -34,45 +34,45 @@ model_text = normalize(title)
            + normalize(transcript)
 \end{verbatim}
 
-Empty fields are skipped, and whitespace is normalized before modeling. This design keeps the system reproducible and reduces dependence on external tools for image extraction, audio processing, or platform-specific scraping. It also reduces leakage risk by excluding features such as channel identity, view count, and duration. Channel identity can cause the model to learn creator-level patterns instead of content-level signals, while popularity and duration fields are not consistently available across all labeled sources.
+Các trường rỗng được bỏ qua và khoảng trắng được chuẩn hóa trước khi đưa vào mô hình. Thiết kế này giúp hệ thống có khả năng tái lập và giảm phụ thuộc vào các công cụ bên ngoài để trích xuất ảnh, xử lý âm thanh hoặc thu thập dữ liệu theo đặc thù nền tảng. Thiết kế này cũng giảm rủi ro rò rỉ dữ liệu bằng cách loại trừ các đặc trưng như danh tính kênh, số lượt xem và thời lượng. Danh tính kênh có thể khiến mô hình học các mẫu ở cấp người tạo nội dung thay vì tín hiệu ở cấp nội dung, trong khi các trường về độ phổ biến và thời lượng không có mặt nhất quán trên tất cả các nguồn có nhãn.
 
-\subsection{Bronze, Silver, and Gold Data Layers}
+\subsection{Các tầng dữ liệu Bronze, Silver và Gold}
 
-Reliable machine learning depends on reliable data engineering. This project uses a three-layer data organization pattern: bronze, silver, and gold. Each layer has a different role in the pipeline.
+Học máy đáng tin cậy phụ thuộc vào kỹ thuật dữ liệu đáng tin cậy. Đề tài sử dụng mô hình tổ chức dữ liệu ba tầng: bronze, silver và gold. Mỗi tầng giữ một vai trò riêng trong pipeline.
 
 \begin{table}[H]
 \centering
 \renewcommand{\arraystretch}{1.35}
 \begin{tabularx}{\textwidth}{|>{\raggedright\arraybackslash}p{2.2cm}|>{\raggedright\arraybackslash}X|}
 \hline
-\textbf{Layer} & \textbf{Purpose} \\
+\textbf{Tầng} & \textbf{Mục đích} \\
 \hline
-Bronze & Preserve raw source records and ingestion metadata as closely as possible to the original files. \\
+Bronze & Bảo toàn các bản ghi nguồn thô và siêu dữ liệu nhập dữ liệu gần nhất có thể với tệp gốc. \\
 \hline
-Silver & Normalize heterogeneous sources into a common row-level schema with consistent field names, labels, text fields, and quality flags. \\
+Silver & Chuẩn hóa các nguồn không đồng nhất thành một lược đồ ở cấp dòng với tên trường, nhãn, trường văn bản và cờ chất lượng nhất quán. \\
 \hline
-Gold & Build modeling-ready tables, canonical text fields, train/validation/test splits, agreement summaries, and audit outputs. \\
+Gold & Xây dựng các bảng sẵn sàng cho mô hình, trường văn bản chuẩn hóa, tập train/validation/test, tóm tắt đồng thuận và kết quả kiểm toán. \\
 \hline
 \end{tabularx}
-\caption{Conceptual roles of the bronze, silver, and gold data layers.}
+\caption{Vai trò khái niệm của các tầng dữ liệu bronze, silver và gold.}
 \label{tab:theory-data-layers}
 \end{table}
 
-The bronze layer supports traceability because it preserves what was ingested. The silver layer supports consistency because every source is converted into the same schema. The gold layer supports modeling because it produces one canonical record per video identifier and prepares clean inputs for training and evaluation.
+Tầng bronze hỗ trợ khả năng truy vết vì bảo toàn nội dung đã được nhập. Tầng silver hỗ trợ tính nhất quán vì mọi nguồn đều được chuyển đổi về cùng một lược đồ. Tầng gold hỗ trợ mô hình hóa vì tạo ra một bản ghi chuẩn hóa cho mỗi mã định danh video và chuẩn bị đầu vào sạch cho huấn luyện cũng như đánh giá.
 
-This layered design is especially useful when source files are heterogeneous. In this project, the data includes spreadsheets, CSV files, different annotator sources, duplicate files, missing video identifiers, inconsistent column names, and variable text availability. A layered pipeline makes these issues visible instead of hiding them inside model training code.
+Thiết kế phân tầng đặc biệt hữu ích khi các tệp nguồn không đồng nhất. Trong đề tài này, dữ liệu bao gồm bảng tính, tệp CSV, nhiều nguồn chú thích, tệp trùng lặp, mã định danh video bị thiếu, tên cột không nhất quán và mức độ sẵn có của văn bản khác nhau. Pipeline phân tầng giúp các vấn đề này trở nên quan sát được thay vì bị che giấu bên trong mã huấn luyện mô hình.
 
-\subsection{Weak Supervision}
+\subsection{Giám sát yếu}
 
-Weak supervision is a learning strategy that uses imperfect label sources to increase the amount of training data. These labels may be cheaper, noisier, or less authoritative than expert labels. In this project, domain expert labels are treated as the primary ground truth, while GPT-4-Turbo and crowdworker labels are treated as weak sources.
+Giám sát yếu (weak supervision) là một chiến lược học sử dụng các nguồn nhãn chưa hoàn hảo để tăng lượng dữ liệu huấn luyện. Các nhãn này có thể rẻ hơn, nhiễu hơn hoặc ít có thẩm quyền hơn nhãn chuyên gia. Trong đề tài này, nhãn của chuyên gia lĩnh vực được xem là ground truth chính, trong khi nhãn của GPT-4-Turbo và crowdworker được xem là các nguồn yếu.
 
-The key idea is not to trust every weak label equally. Instead, the system estimates each weak source's reliability by comparing it with domain expert labels on the expert-labeled training overlap:
+Ý tưởng cốt lõi không phải là tin tưởng mọi nhãn yếu như nhau. Thay vào đó, hệ thống ước lượng độ tin cậy của từng nguồn yếu bằng cách so sánh nguồn đó với nhãn chuyên gia lĩnh vực trên phần giao nhau thuộc tập huấn luyện có nhãn chuyên gia:
 
 \begin{equation}
-    r_s = \frac{\#\text{ agreements between source }s\text{ and domain expert}}{\#\text{ overlapping training examples}}.
+    r_s = \frac{\#\text{số lần nguồn }s\text{ đồng thuận với chuyên gia lĩnh vực}}{\#\text{số mẫu huấn luyện giao nhau}}.
 \end{equation}
 
-The reliabilities are then normalized into weights:
+Các độ tin cậy sau đó được chuẩn hóa thành trọng số:
 
 \begin{equation}
     w_{\text{GPT}} =
@@ -82,14 +82,14 @@ The reliabilities are then normalized into weights:
     \frac{r_{\text{Crowd}}}{r_{\text{GPT}} + r_{\text{Crowd}}}.
 \end{equation}
 
-For a video with available weak labels, the weak harmful probability is a weighted average:
+Đối với một video có các nhãn yếu khả dụng, xác suất độc hại yếu được tính như một trung bình có trọng số:
 
 \begin{equation}
     p_{\text{weak}} =
     \frac{\sum_{s \in S} w_s y_s}{\sum_{s \in S} w_s},
 \end{equation}
 
-where \(S\) is the set of available weak sources and \(y_s \in \{0,1\}\) is the binary label from source \(s\). The system then applies a conservative acceptance rule:
+trong đó \(S\) là tập các nguồn yếu khả dụng và \(y_s \in \{0,1\}\) là nhãn nhị phân từ nguồn \(s\). Sau đó, hệ thống áp dụng một quy tắc chấp nhận thận trọng:
 
 \begin{verbatim}
 if weak_p >= 0.75:
@@ -100,19 +100,19 @@ else:
     abstain
 \end{verbatim}
 
-Accepted weak labels are given sample weights based on confidence:
+Các nhãn yếu được chấp nhận sẽ nhận trọng số mẫu dựa trên độ tự tin:
 
 \begin{equation}
-    \text{sample weight} = 0.5 + |p_{\text{weak}} - 0.5|.
+    \text{trọng số mẫu} = 0.5 + |p_{\text{weak}} - 0.5|.
 \end{equation}
 
-This gives higher weight to weak labels farther from uncertainty and lower weight to labels closer to the decision boundary.
+Quy tắc này gán trọng số cao hơn cho các nhãn yếu nằm xa vùng bất định và trọng số thấp hơn cho các nhãn gần biên quyết định.
 
-\subsection{Pseudo-Labeling}
+\subsection{Gán nhãn giả}
 
-Pseudo-labeling is a self-training method in which a trained model is used to assign labels to previously unlabeled examples. These automatically generated labels are then added to the training set if they satisfy confidence requirements. The purpose is to use the unlabeled pool without manually annotating every example.
+Gán nhãn giả (pseudo-labeling) là một phương pháp tự huấn luyện, trong đó mô hình đã huấn luyện được dùng để gán nhãn cho các mẫu chưa có nhãn. Những nhãn được sinh tự động này chỉ được thêm vào tập huấn luyện nếu thỏa mãn các yêu cầu về độ tin cậy. Mục tiêu là khai thác tập chưa gán nhãn mà không cần chú thích thủ công cho từng mẫu.
 
-In this project, pseudo-labeling is deliberately conservative. The model first scores unlabeled videos using the best weak-supervision model. A pseudo-label is accepted only if the example has enough text and the calibrated harmful probability is very close to either 0 or 1:
+Trong đề tài này, gán nhãn giả được thiết kế một cách thận trọng. Trước hết, mô hình giám sát yếu tốt nhất được dùng để chấm điểm các video chưa gán nhãn. Một nhãn giả chỉ được chấp nhận nếu mẫu có đủ văn bản và xác suất độc hại đã hiệu chỉnh nằm rất gần 0 hoặc 1:
 
 \begin{verbatim}
 if token_count >= 30 and (p_harmful >= 0.95 or p_harmful <= 0.05):
@@ -121,9 +121,9 @@ else:
     discard
 \end{verbatim}
 
-All accepted pseudo-labels receive a fixed sample weight of 0.5. The model is retrained once, and the self-training process stops after that single round. This prevents uncontrolled feedback loops where model errors can be repeatedly reinforced.
+Tất cả nhãn giả được chấp nhận nhận trọng số mẫu cố định bằng 0.5. Mô hình được huấn luyện lại một lần duy nhất và quá trình tự huấn luyện dừng lại sau vòng đó. Cách làm này ngăn các vòng phản hồi không kiểm soát, trong đó lỗi của mô hình có thể bị củng cố lặp đi lặp lại.
 
-The final pseudo-labeling rule is validation-based. The pseudo-label model is kept only if it does not reduce validation macro-F1 or harmful-class recall compared with the weak-supervision model. This rule is important because pseudo-labeling can increase training size while still reducing model quality if the accepted labels are biased or incorrect.
+Quy tắc cuối cùng cho gán nhãn giả dựa trên tập validation. Mô hình có nhãn giả chỉ được giữ lại nếu không làm giảm macro-F1 trên validation hoặc recall của lớp độc hại so với mô hình giám sát yếu. Quy tắc này quan trọng vì gán nhãn giả có thể làm tăng kích thước tập huấn luyện nhưng vẫn làm giảm chất lượng mô hình nếu các nhãn được chấp nhận bị lệch hoặc sai.
 
 \begin{figure}[H]
 \centering
@@ -135,112 +135,112 @@ The final pseudo-labeling rule is validation-based. The pseudo-label model is ke
     decision/.style={box, fill=orange!15},
     arrow/.style={->, thick}
 ]
-\node[source] at (0,2.4) (expert) {Domain expert\\labels};
-\node[source] at (0,0.8) (weak) {Weak sources\\GPT and crowd};
-\node[source] at (0,-0.8) (unlabeled) {Unlabeled\\text pool};
+\node[source] at (0,2.4) (expert) {Nhãn chuyên gia\\lĩnh vực};
+\node[source] at (0,0.8) (weak) {Nguồn yếu\\GPT và crowd};
+\node[source] at (0,-0.8) (unlabeled) {Tập văn bản\\chưa gán nhãn};
 
-\node[model] at (4.2,2.4) (baseline) {Expert-only\\baseline};
-\node[model] at (4.2,0.8) (weakmodel) {Expert + weak\\supervision};
-\node[model] at (4.2,-0.8) (pseudomodel) {Expert + weak +\\pseudo-labeling};
-\node[decision] at (8.5,0.8) (selection) {Validation-based\\model selection};
+\node[model] at (4.2,2.4) (baseline) {Mô hình nền\\chỉ chuyên gia};
+\node[model] at (4.2,0.8) (weakmodel) {Chuyên gia +\\giám sát yếu};
+\node[model] at (4.2,-0.8) (pseudomodel) {Chuyên gia + yếu +\\gán nhãn giả};
+\node[decision] at (8.5,0.8) (selection) {Chọn mô hình\\theo validation};
 
 \draw[arrow] (expert) -- (baseline);
 \draw[arrow] (expert) -- (weakmodel);
-\draw[arrow] (weak) -- node[above, font=\scriptsize] {weighted labels} (weakmodel);
-\draw[arrow] (weakmodel) -- node[above, font=\scriptsize] {score unlabeled text} (pseudomodel);
-\draw[arrow] (unlabeled) -- node[below, font=\scriptsize] {high-confidence labels} (pseudomodel);
+\draw[arrow] (weak) -- node[above, font=\scriptsize] {nhãn có trọng số} (weakmodel);
+\draw[arrow] (weakmodel) -- node[above, font=\scriptsize] {chấm điểm văn bản chưa gán nhãn} (pseudomodel);
+\draw[arrow] (unlabeled) -- node[below, font=\scriptsize] {nhãn độ tin cậy cao} (pseudomodel);
 \draw[arrow] (baseline) -- (selection);
 \draw[arrow] (weakmodel) -- (selection);
 \draw[arrow] (pseudomodel) -- (selection);
 
-\node[align=center, font=\scriptsize] at (8.5,-1.0) {Select by validation\\macro-F1 and recall};
+\node[align=center, font=\scriptsize] at (8.5,-1.0) {Chọn theo macro-F1\\và recall trên validation};
 \end{tikzpicture}
 }
-\caption{Conceptual relationship between supervised learning, weak supervision, pseudo-labeling, and validation-based model selection.}
+\caption{Quan hệ khái niệm giữa học có giám sát, giám sát yếu, gán nhãn giả và lựa chọn mô hình dựa trên validation.}
 \label{fig:theory-learning-strategy}
 \end{figure}
 
-\subsection{TF-IDF Text Representation}
+\subsection{Biểu diễn văn bản bằng TF-IDF}
 
-Machine learning models require numeric input, so text must be converted into feature vectors. This project uses term frequency-inverse document frequency, commonly called TF-IDF. TF-IDF gives higher weight to terms that are frequent in a document but not common across all documents.
+Các mô hình học máy cần đầu vào dạng số, vì vậy văn bản phải được chuyển thành vector đặc trưng. Đề tài sử dụng term frequency-inverse document frequency, thường được gọi là TF-IDF. TF-IDF gán trọng số cao hơn cho những từ xuất hiện thường xuyên trong một văn bản nhưng không quá phổ biến trên toàn bộ tập văn bản.
 
-For a term \(t\) in document \(d\), the intuition is:
+Với một thuật ngữ \(t\) trong văn bản \(d\), ý tưởng có thể được viết như sau:
 
 \begin{equation}
     \text{TF-IDF}(t,d) =
     \text{TF}(t,d) \times \text{IDF}(t).
 \end{equation}
 
-Term frequency measures how often a term appears in one document. Inverse document frequency reduces the weight of terms that appear in many documents and are therefore less discriminative. For harmful video detection, this is useful because generic words should have less influence than phrases or terms that are more specific to harmful or harmless contexts.
+Term frequency đo mức độ thường xuyên của một thuật ngữ trong một văn bản. Inverse document frequency làm giảm trọng số của các thuật ngữ xuất hiện trong nhiều văn bản và do đó kém phân biệt hơn. Đối với phát hiện video độc hại, điều này hữu ích vì các từ chung chung nên có ảnh hưởng thấp hơn những cụm từ hoặc thuật ngữ đặc thù cho ngữ cảnh độc hại hoặc không độc hại.
 
-The system uses both unigrams and bigrams. Unigrams capture single words, while bigrams capture short two-word phrases. This helps the model represent phrases whose meaning depends on word combinations rather than isolated words.
+Hệ thống sử dụng cả unigram và bigram. Unigram biểu diễn từng từ đơn lẻ, trong khi bigram biểu diễn các cụm hai từ ngắn. Cách làm này giúp mô hình nắm bắt các cụm từ có ý nghĩa phụ thuộc vào tổ hợp từ thay vì từng từ rời rạc.
 
-\subsection{Logistic Regression for Binary Classification}
+\subsection{Hồi quy logistic cho phân loại nhị phân}
 
-Logistic regression is a linear classification model that estimates the probability of a binary outcome. Given a feature vector \(x\), the model computes:
+Hồi quy logistic là một mô hình phân loại tuyến tính ước lượng xác suất của một kết quả nhị phân. Với vector đặc trưng \(x\), mô hình tính:
 
 \begin{equation}
     P(y=1 \mid x) = \sigma(w^\top x + b),
 \end{equation}
 
-where \(w\) is the learned weight vector, \(b\) is the bias term, and \(\sigma\) is the sigmoid function:
+trong đó \(w\) là vector trọng số được học, \(b\) là hệ số chệch và \(\sigma\) là hàm sigmoid:
 
 \begin{equation}
     \sigma(z) = \frac{1}{1 + e^{-z}}.
 \end{equation}
 
-Logistic regression is a strong baseline for sparse text features because it is efficient, stable, and interpretable compared with heavier neural models. It is also appropriate for a local single-node workflow. In this project, probability calibration is applied so that predicted probabilities are more suitable for thresholding, risk-band mapping, and pseudo-label acceptance.
+Hồi quy logistic là một mô hình nền mạnh cho đặc trưng văn bản thưa vì hiệu quả, ổn định và dễ diễn giải hơn so với các mô hình neural nặng hơn. Mô hình này cũng phù hợp với quy trình cục bộ trên một máy đơn. Trong đề tài này, hiệu chỉnh xác suất (probability calibration) được áp dụng để các xác suất dự đoán phù hợp hơn cho việc đặt ngưỡng, ánh xạ mức rủi ro và chấp nhận nhãn giả.
 
-\subsection{Evaluation Metrics}
+\subsection{Các thước đo đánh giá}
 
-The project evaluates binary classification using multiple metrics rather than relying on accuracy alone. This is important because harmful-video datasets can be imbalanced, and a model may appear accurate while performing poorly on one class.
+Đề tài đánh giá phân loại nhị phân bằng nhiều thước đo thay vì chỉ dựa vào accuracy. Điều này quan trọng vì các bộ dữ liệu video độc hại có thể mất cân bằng, và một mô hình có thể trông chính xác về tổng thể nhưng lại hoạt động kém trên một lớp.
 
 \begin{table}[H]
 \centering
 \renewcommand{\arraystretch}{1.3}
 \begin{tabularx}{\textwidth}{|>{\raggedright\arraybackslash}p{3cm}|>{\raggedright\arraybackslash}X|}
 \hline
-\textbf{Metric} & \textbf{Meaning} \\
+\textbf{Thước đo} & \textbf{Ý nghĩa} \\
 \hline
-Precision & Among videos predicted as harmful, the proportion that are truly harmful. \\
+Precision & Trong số các video được dự đoán là độc hại, tỷ lệ video thực sự độc hại. \\
 \hline
-Recall & Among truly harmful videos, the proportion detected by the model. \\
+Recall & Trong số các video thực sự độc hại, tỷ lệ video được mô hình phát hiện. \\
 \hline
-Macro-F1 & Average F1 score across classes, giving each class equal importance. \\
+Macro-F1 & Trung bình F1 trên các lớp, trong đó mỗi lớp có trọng số như nhau. \\
 \hline
-Weighted F1 & F1 score averaged across classes while accounting for class frequency. \\
+Weighted F1 & F1 được trung bình theo các lớp và có xét đến tần suất của từng lớp. \\
 \hline
-AUROC & Measures ranking quality across classification thresholds. \\
+AUROC & Đo chất lượng xếp hạng của mô hình trên các ngưỡng phân loại khác nhau. \\
 \hline
-PR-AUC & Measures precision-recall tradeoff, especially useful under class imbalance. \\
+PR-AUC & Đo đánh đổi precision-recall, đặc biệt hữu ích khi dữ liệu mất cân bằng. \\
 \hline
-Confusion matrix & Counts true negatives, false positives, false negatives, and true positives. \\
+Ma trận nhầm lẫn & Đếm true negative, false positive, false negative và true positive. \\
 \hline
 \end{tabularx}
-\caption{Main binary classification metrics used in the project.}
+\caption{Các thước đo chính dùng để đánh giá phân loại nhị phân trong đề tài.}
 \label{tab:theory-evaluation-metrics}
 \end{table}
 
-Macro-F1 and harmful-class recall are emphasized in this project. Macro-F1 prevents the majority class from dominating the evaluation, while harmful-class recall measures how many harmful videos the model successfully detects. Precision is also important because false positives can incorrectly flag harmless videos, but the project prioritizes recall and macro-F1 for the core moderation-triage objective.
+Macro-F1 và recall của lớp độc hại được nhấn mạnh trong đề tài. Macro-F1 ngăn lớp đa số chi phối kết quả đánh giá, trong khi recall của lớp độc hại cho biết mô hình phát hiện được bao nhiêu video độc hại. Precision cũng quan trọng vì false positive có thể khiến video không độc hại bị gắn cờ sai, nhưng đề tài ưu tiên recall và macro-F1 cho mục tiêu phân loại ưu tiên kiểm duyệt.
 
-\subsection{Annotator Agreement}
+\subsection{Độ đồng thuận giữa các nguồn chú thích}
 
-Because the dataset includes labels from domain experts, GPT-4-Turbo, and crowdworkers, it is important to measure how much these sources agree. Two agreement measures are used: percent agreement and Cohen's kappa.
+Vì bộ dữ liệu có nhãn từ chuyên gia lĩnh vực, GPT-4-Turbo và crowdworker, việc đo mức độ đồng thuận giữa các nguồn là cần thiết. Hai thước đo đồng thuận được sử dụng là tỷ lệ đồng thuận phần trăm và hệ số kappa của Cohen.
 
-Percent agreement is the direct proportion of overlapping examples where two sources assign the same label:
+Tỷ lệ đồng thuận phần trăm là tỷ lệ trực tiếp các mẫu giao nhau mà hai nguồn gán cùng một nhãn:
 
 \begin{equation}
-    \text{Percent agreement} =
-    \frac{\#\text{ matching labels}}{\#\text{ overlapping examples}}.
+    \text{Tỷ lệ đồng thuận} =
+    \frac{\#\text{số nhãn khớp}}{\#\text{số mẫu giao nhau}}.
 \end{equation}
 
-However, percent agreement does not account for agreement that may happen by chance. Cohen's kappa adjusts for chance agreement:
+Tuy nhiên, tỷ lệ đồng thuận phần trăm không tính đến mức đồng thuận có thể xảy ra do ngẫu nhiên. Hệ số kappa của Cohen hiệu chỉnh phần đồng thuận ngẫu nhiên:
 
 \begin{equation}
     \kappa =
     \frac{p_o - p_e}{1 - p_e},
 \end{equation}
 
-where \(p_o\) is observed agreement and \(p_e\) is expected agreement by chance. A low kappa value can indicate that two sources have weak chance-adjusted consistency even when their raw percent agreement appears moderate.
+trong đó \(p_o\) là mức đồng thuận quan sát được và \(p_e\) là mức đồng thuận kỳ vọng do ngẫu nhiên. Giá trị kappa thấp có thể cho thấy hai nguồn có tính nhất quán yếu sau khi hiệu chỉnh theo ngẫu nhiên, ngay cả khi tỷ lệ đồng thuận thô có vẻ ở mức trung bình.
 
-In this project, agreement analysis is not only descriptive. It directly supports the weak-supervision design by showing that GPT and crowdworker labels should be treated as noisy sources rather than as equally reliable ground truth.
+Trong đề tài này, phân tích đồng thuận không chỉ có ý nghĩa mô tả. Kết quả này trực tiếp hỗ trợ thiết kế giám sát yếu bằng cách cho thấy nhãn của GPT và crowdworker nên được xem là nguồn nhiễu, không phải ground truth có độ tin cậy ngang bằng với chuyên gia.
